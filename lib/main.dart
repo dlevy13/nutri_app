@@ -7,7 +7,8 @@ import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart'
     as sqflite_ffi_web;       // Web (IndexedDB + Wasm) :contentReference[oaicite:1]{index=1}
 import 'pages/splash_screen.dart';
 import 'package:intl/date_symbol_data_local.dart';
-
+import 'firebase_options.dart'; // généré automatiquement par flutterfire configure
+import 'package:firebase_core/firebase_core.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,6 +22,10 @@ void main() async {
     sqflite_ffi.sqfliteFfiInit();
     databaseFactory = sqflite_ffi.databaseFactoryFfi;
   }
+  // Initialisation Firebase adaptée à la plateforme
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
   // 2) Initialisation du formatage des dates (locale FR)
   await initializeDateFormatting('fr_FR');
