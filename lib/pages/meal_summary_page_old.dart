@@ -71,31 +71,31 @@ class MealSummaryPage extends StatelessWidget {
                   ),
                 ],
                 rows: meals.map((meal) {
-  return DataRow(cells: [
-    DataCell(Text(
-      getShortenedName(meal.name, wordCount: 3),
-      overflow: TextOverflow.ellipsis,
-      maxLines: 1,
-      style: TextStyle(fontSize: 12),
-    )),
-    DataCell(Text(
-      meal.calories.toStringAsFixed(1),
-      style: TextStyle(fontSize: 12),
-    )),
-    DataCell(Text(
-      meal.protein.toStringAsFixed(1),
-      style: TextStyle(fontSize: 12),
-    )),
-    DataCell(Text(
-      meal.carbs.toStringAsFixed(1),
-      style: TextStyle(fontSize: 12),
-    )),
-    DataCell(Text(
-      meal.fat.toStringAsFixed(1),
-      style: TextStyle(fontSize: 12),
-    )),
-  ]);
-}).toList(),
+                  return DataRow(cells: [
+                    DataCell(Text(
+                      getShortenedName(meal['name'], wordCount: 3), // Réduction du nom avec 3 mots max
+                      overflow: TextOverflow.ellipsis, // Réduit le texte en cas de débordement
+                      maxLines: 1, // Limite le texte à une seule ligne
+                      style: TextStyle(fontSize: 12), // Taille de la police réduite
+                    )),
+                    DataCell(Text(
+                      meal['calories'].toStringAsFixed(1),
+                      style: TextStyle(fontSize: 12), // Taille de la police réduite
+                    )),
+                    DataCell(Text(
+                      meal['protein'].toStringAsFixed(1),
+                      style: TextStyle(fontSize: 12), // Taille de la police réduite
+                    )),
+                    DataCell(Text(
+                      meal['carbs'].toStringAsFixed(1),
+                      style: TextStyle(fontSize: 12), // Taille de la police réduite
+                    )),
+                    DataCell(Text(
+                      meal['fat'].toStringAsFixed(1),
+                      style: TextStyle(fontSize: 12), // Taille de la police réduite
+                    )),
+                  ]);
+                }).toList(),
               ),
             ),
             

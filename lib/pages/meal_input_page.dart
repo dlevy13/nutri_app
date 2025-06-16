@@ -577,16 +577,17 @@ Padding(
             ElevatedButton.icon(
               icon: const Icon(Icons.summarize),
               label: const Text('Synthèse du repas'),
+              
               onPressed: () {
-                final List<Map<String, dynamic>> mappedMeals =
-                selectedFoods.map((meal) => meal.toMap()).toList();
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                     builder: (context) => MealSummaryPage(meals: mappedMeals),
-                  ),
-                );
-              },
+              final convertedMeals = selectedFoods.map((map) => Meal.fromMap(map)).toList();
+
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => MealSummaryPage(meals: convertedMeals),
+                ),
+              );
+            },
             ),
           ] else
             const Text("Aucun aliment ajouté. Ajoutez-en un !"),

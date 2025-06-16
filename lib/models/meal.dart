@@ -41,6 +41,7 @@ class Meal extends HiveObject {
     required this.date,
   });
 
+
   factory Meal.fromMap(Map<String, dynamic> map) {
     return Meal(
       name: map['name'] ?? '',
