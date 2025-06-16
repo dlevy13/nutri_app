@@ -7,6 +7,11 @@ import 'profile_form_page.dart';
 import 'training_planner_page.dart';
 import 'meal_input_page.dart';
 import '../services/meal_database_service.dart';
+import 'package:hive/hive.dart';
+import 'package:nutri_app/models/meal.dart';
+
+
+
 
 
 class DashboardPage extends StatefulWidget {
@@ -69,7 +74,9 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Future<void> _loadMeals() async {
-    final data = await dbService.getMealsForTheWeek();
+    final box = await Hive.openBox<Meal>('meals');
+    final data = await dbService.getMealsForTheWeek(box);
+
     setState(() {
       weeklyMeals = data;
     });

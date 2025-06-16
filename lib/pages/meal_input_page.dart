@@ -9,6 +9,8 @@ import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart' show compute;
 import 'dart:async'; // pour Timer
 import '../widget/food_search_field.dart';
+import 'package:nutri_app/models/meal.dart';
+
 //import '../widget/create_food_button.dart';
 
 class MealInputPage extends StatefulWidget {
@@ -20,12 +22,15 @@ class MealInputPage extends StatefulWidget {
 }
 
 class _MealInputPageState extends State<MealInputPage> {
+  List<Meal> selectedFoods = [];
+
   List<dynamic> foodList = [];
-  List<Map<String, dynamic>> selectedFoods = [];
+  
   List<dynamic> suggestions = [];
   String search = "";
   String selectedMealType = "Petit-déjeuner";
   final dbService = MealDatabaseService();
+    
   bool isLoading = false;
   DateTime selectedDate = DateTime.now();
   Timer? _debounce;
@@ -65,15 +70,16 @@ class _MealInputPageState extends State<MealInputPage> {
 
 
     await dbService.addMeal(
-      food['name'] ?? '',
-      calories,
-      protein,
-      carbs,
-      fat,
-      quantity,
-      selectedMealType,
-      date,
+      name: food['name'] ?? '',
+      calories: calories,
+      protein: protein,
+      carbs: carbs,
+      fat: fat,
+      quantity: quantity,
+      mealType: selectedMealType,
+      date: date,
     );
+
 
     _loadMealsFromDatabase();
   }
@@ -95,18 +101,19 @@ class _MealInputPageState extends State<MealInputPage> {
     });
   }
 
-  Future<void> _removeFood(int id) async {
-    setState(() {
-      isLoading = true;
-    });
+  Future<void> _removeFood(Meal meal) async {
+  setState(() {
+    isLoading = true;
+  });
 
-    await dbService.removeMeal(id);
-    await _loadMealsFromDatabase();
+  await meal.delete(); // supprimé directement
+  await _loadMealsFromDatabase();
 
-    setState(() {
-      isLoading = false;
-    });
-  }
+  setState(() {
+    isLoading = false;
+  });
+}
+
 
   Future<void> _resetDatabase() async {
     try {
@@ -129,10 +136,10 @@ class _MealInputPageState extends State<MealInputPage> {
     }
   }
 
-  double get totalCalories => selectedFoods.fold(0.0, (sum, f) => sum + (f["calories"] ?? 0));
-  double get totalProteins => selectedFoods.fold(0.0, (sum, f) => sum + (f["protein"] ?? 0));
-  double get totalCarbs => selectedFoods.fold(0.0, (sum, f) => sum + (f["carbs"] ?? 0));
-  double get totalFats => selectedFoods.fold(0.0, (sum, f) => sum + (f["fat"] ?? 0));
+  double get totalCalories => selectedFoods.fold(0.0, (sum, f) => sum + f.calories);
+  double get totalProteins => selectedFoods.fold(0.0, (sum, f) => sum + f.protein);
+  double get totalCarbs => selectedFoods.fold(0.0, (sum, f) => sum + f.carbs);
+  double get totalFats => selectedFoods.fold(0.0, (sum, f) => sum + f.fat);
 
 
   void _showCreateFoodDialog(BuildContext context, String nameSuggestion) {
@@ -161,17 +168,35 @@ class _MealInputPageState extends State<MealInputPage> {
           TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuler")),
           ElevatedButton(
             onPressed: () async {
-              final newFood = {
-                'name': nameController.text,
-                'calories': double.tryParse(calController.text) ?? 0,
-                'proteins': double.tryParse(protController.text) ?? 0,
-                'carbs': double.tryParse(carbController.text) ?? 0,
-                'fats': double.tryParse(fatController.text) ?? 0,
-              };
-              await dbService.addCustomFood(newFood);
-              await _loadFoodData(); // recharge les aliments
-              Navigator.pop(context);
-            },
+            final newMeal = Meal(
+              name: nameController.text,
+              calories: double.tryParse(calController.text) ?? 0,
+              protein: double.tryParse(protController.text) ?? 0,
+              carbs: double.tryParse(carbController.text) ?? 0,
+              fat: double.tryParse(fatController.text) ?? 0,
+              quantity: 1,
+              type: selectedMealType,
+              date: DateFormat('yyyy-MM-dd').format(selectedDate),
+            );
+
+            // Étape 1 : ajouter le repas
+            await dbService.addCustomFood(newMeal);
+
+            // Vérifie si le widget est encore monté
+            if (!mounted) return;
+
+            // Étape 2 : recharger les données
+            await _loadFoodData();
+
+            // Vérifie encore une fois si le widget est monté
+            if (!mounted) return;
+
+            // Étape 3 : fermeture de la page
+            if (context.mounted) {
+              Navigator.of(context).pop();
+            }
+          },
+
             child: const Text("Créer"),
           ),
         ],
@@ -312,7 +337,10 @@ Future<void> _searchFoodFromAPIButton() async {
 
     if (apiResults.isNotEmpty) {
       // 4) Insertion en parallèle pour gagner du temps
-      await Future.wait(apiResults.map((food) => dbService.addCustomFood(food)));
+      await Future.wait(apiResults.map((foodMap) {
+        final meal = Meal.fromMap(foodMap);
+        return dbService.addCustomFood(meal);
+      }));
 
       // 5) Puis on recharge les suggestions locales
       await _searchFoodLocally(search);
@@ -536,11 +564,11 @@ Padding(
               itemBuilder: (_, i) {
                 final meal = selectedFoods[i];
                 return ListTile(
-                  title: Text(meal['name']),
-                  subtitle: Text("${meal['quantity']}g - ${meal['calories']} kcal"),
+                  title: Text(meal.name),
+                  subtitle: Text("${meal.quantity}g - ${meal.calories} kcal"),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () => _removeFood(meal['id']),
+                    onPressed: () => _removeFood(meal),
                   ),
                 );
               },
@@ -550,10 +578,12 @@ Padding(
               icon: const Icon(Icons.summarize),
               label: const Text('Synthèse du repas'),
               onPressed: () {
+                final List<Map<String, dynamic>> mappedMeals =
+                selectedFoods.map((meal) => meal.toMap()).toList();
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => MealSummaryPage(meals: selectedFoods),
+                     builder: (context) => MealSummaryPage(meals: mappedMeals),
                   ),
                 );
               },

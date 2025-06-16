@@ -1,31 +1,20 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/material.dart';
-import 'package:sqflite/sqflite.dart'; // pour openDatabase et databaseFactory global
-import 'package:sqflite_common_ffi/sqflite_ffi.dart'
-    as sqflite_ffi;           // desktop / mobile :contentReference[oaicite:0]{index=0}
-import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart'
-    as sqflite_ffi_web;       // Web (IndexedDB + Wasm) :contentReference[oaicite:1]{index=1}
+import 'package:flutter/material.dart';      // Web (IndexedDB + Wasm) :contentReference[oaicite:1]{index=1}
 import 'pages/splash_screen.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'firebase_options.dart'; // généré automatiquement par flutterfire configure
-import 'package:firebase_core/firebase_core.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:path_provider/path_provider.dart';
+import 'models/meal.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+await Hive.initFlutter();
 
-  // 1) Initialisation de sqflite pour chaque plateforme
-  if (kIsWeb) {
-    // PWA / Web → IndexedDB via Wasm
-    databaseFactory = sqflite_ffi_web.databaseFactoryFfiWeb;
-  } else {
-    // iOS, Android, macOS, Windows, Linux → sqlite via FFI
-    sqflite_ffi.sqfliteFfiInit();
-    databaseFactory = sqflite_ffi.databaseFactoryFfi;
-  }
-  // Initialisation Firebase adaptée à la plateforme
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+
+  // ✅ Enregistrement de l'adaptateur Meal
+  Hive.registerAdapter(MealAdapter());
+  
 
   // 2) Initialisation du formatage des dates (locale FR)
   await initializeDateFormatting('fr_FR');

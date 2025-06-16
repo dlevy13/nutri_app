@@ -1,186 +1,115 @@
-import 'dart:io';
-import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart';
-//import 'package:intl/intl.dart';
+import 'package:hive/hive.dart';
+import '../models/meal.dart';
+import 'package:intl/intl.dart';
 
 class MealDatabaseService {
-  static final MealDatabaseService _instance = MealDatabaseService._internal();
-  factory MealDatabaseService() => _instance;
-
-  MealDatabaseService._internal();
-
-  Database? _db;
+  static const String _mealBoxName = 'mealsBox';
 
   Future<void> init() async {
-    _db ??= await _initDatabase();
+    await Hive.openBox<Meal>(_mealBoxName);
   }
 
-  Future<Database> get database async {
-    _db ??= await _initDatabase();
-    return _db!;
-  }
-
-  Future<Database> _initDatabase() async {
-  final dbPath = await getDatabasesPath();
-  final path = join(dbPath, 'meals.db');
-
-  return await openDatabase(
-    path,
-    version: 2, // ⬅️ Change la version pour forcer le onUpgrade
-    onCreate: (db, version) async {
-      await db.execute('''
-        CREATE TABLE meals (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          name TEXT,
-          calories REAL,
-          protein REAL,
-          carbs REAL,
-          fat REAL,
-          quantity REAL,
-          mealType TEXT,
-          date TEXT
-        )
-      ''');
-
-      await db.execute('''
-        CREATE TABLE custom_foods (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          name TEXT NOT NULL,
-          calories REAL,
-          proteins REAL,
-          carbs REAL,
-          fats REAL
-        )
-      ''');
-    },
-    onUpgrade: (db, oldV, newV) async {
-      if (oldV < 2) {
-        await db.execute('''
-          CREATE TABLE IF NOT EXISTS custom_foods (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            calories REAL,
-            proteins REAL,
-            carbs REAL,
-            fats REAL
-          )
-        ''');
-      }
-      // if (oldV < 3) { // future migration… }
-    },
+ Future<void> addMeal({
+  required String name,
+  required double calories,
+  required double protein,
+  required double carbs,
+  required double fat,
+  required double quantity,
+  required String mealType,
+  required String date,
+}) async {
+  final meal = Meal(
+    name: name,
+    calories: calories,
+    protein: protein,
+    carbs: carbs,
+    fat: fat,
+    quantity: quantity,
+    type: mealType,
+    date: date,
   );
+
+  final box = await Hive.openBox<Meal>('meals');
+  await box.add(meal);
 }
 
 
-  Future<void> addMeal(
-  String name,
-  double calories,
-  double protein,
-  double carbs,
-  double fat,
-  double quantity,
-  String mealType,
-  String date,
-) async {
-  final db = await database;
 
-  // Insérer les données calculées directement dans la base de données
-  await db.insert('meals', {
-    'name': name,
-    'calories': calories,
-    'protein': protein,
-    'carbs': carbs,
-    'fat': fat,
-    'quantity': quantity,
-    'mealType': mealType,
-    'date': date,
-  });
+  Future<void> deleteMeal(String key) async {
+    final box = Hive.box<Meal>(_mealBoxName);
+    await box.delete(key);
+  }
+
+  Future<void> resetMeals() async {
+    final box = Hive.box<Meal>(_mealBoxName);
+    await box.clear();
+  }
+
+  Future<List<Meal>> getMeals({required String mealType, required String date}) async {
+  final box = await Hive.openBox<Meal>('meals');
+  return box.values.where((meal) => meal.type == mealType && meal.date == date).toList();
 }
 
-
-  Future<List<Map<String, dynamic>>> getMeals({
-    required String mealType,
-    required String date,
-  }) async {
-    final db = await database;
-    return await db.query(
-      'meals',
-      where: 'mealType = ? AND date = ?',
-      whereArgs: [mealType, date],
-    );
-  }
-
-  Future<void> removeMeal(int id) async {
-    final db = await database;
-    await db.delete('meals', where: 'id = ?', whereArgs: [id]);
-  }
-
-  // Méthode pour supprimer toutes les entrées de repas
-  Future<void> resetDatabase() async {
-    final db = await database;
-    await db.delete('meals'); // Supprime toutes les entrées de repas
-  }
-
-  //fermeture de la base quand l'app se ferme
-  Future<void> close() async {
-    if (_db != null && _db!.isOpen) {
-      await _db!.close();
-      _db = null;
-    }
-  }
-
-  // Méthode pour supprimer le fichier de la base de données
-  Future<void> deleteDatabaseFile() async {
-    final dbPath = await getDatabasesPath();
-    final path = join(dbPath, 'meals.db');
-    final file = File(path);
-
-    if (await file.exists()) {
-      await file.delete(); // Supprime le fichier de la base de données
-    }
-  }
-  // Méthode pour ajouter un aliment personnalisé
-    Future<void> addCustomFood(Map<String, dynamic> food) async {
-      final db = await database;
-      await db.insert('custom_foods', food);
-    }
-
-    Future<List<Map<String, dynamic>>> getCustomFoods() async {
-      final db = await database;
-      return await db.query('custom_foods');
-    }
-
-// Méthode pour rechercher des aliments personnalisés
-Future<List<Map<String, dynamic>>> searchFoods(String query) async {
-  final db = await database;
-
-  // Utiliser le SQL LIKE pour rechercher par nom
-  return await db.query(
-    'custom_foods',
-    where: 'name LIKE ?',
-    whereArgs: ['%$query%'], // Utilisation de % pour une recherche partielle
-  );
+Future<List<String>> getCustomFoods() async {
+  final box = await Hive.openBox<Meal>('meals');
+  final allFoods = box.values.map((meal) => meal.name.trim()).toSet();
+  return allFoods.toList();
 }
 
-  // Récupérer les repas pour toute la semaine (optionnel)
- Future<Map<String, List<Map<String, dynamic>>>> getMealsForTheWeek() async {
-  final db  = await database;
+Future<void> addCustomFood(Meal meal) async {
+  final box = await Hive.openBox<Meal>('meals');
+  await box.add(meal);
+}
+Future<List<Meal>> searchFoods(String query) async {
+  final box = await Hive.openBox<Meal>('meals');
+  return box.values
+      .where((meal) => meal.name.toLowerCase().contains(query.toLowerCase()))
+      .toList();
+}
+
+  Future<List<Meal>> getMealsByDateAndType(String date, String type) async {
+    final box = Hive.box<Meal>(_mealBoxName);
+    return box.values.where((meal) =>
+      meal.date == date && meal.type == type
+    ).toList();
+  }
+Future<Map<String, List<Map<String, dynamic>>>> getMealsForTheWeek(Box<Meal> box) async {
+  final Map<String, List<Map<String, dynamic>>> data = {};
   final now = DateTime.now();
   final monday = now.subtract(Duration(days: now.weekday - 1));
 
-  final Map<String, List<Map<String, dynamic>>> weeklyMeals = {};
+  for (int i = 0; i < 7; i++) {
+    final date = monday.add(Duration(days: i));
+    final dateStr = DateFormat('yyyy-MM-dd').format(date);
+    final meals = box.values
+        .where((meal) => meal.date == dateStr)
+        .map((meal) => {
+              "name": meal.name,
+              "calories": meal.calories,
+              "protein": meal.protein,
+              "carbs": meal.carbs,
+              "fat": meal.fat,
+              "quantity": meal.quantity,
+              "type": meal.type,
+              "date": meal.date,
+            })
+        .toList();
 
-  for (var offset = 0; offset < 7; offset++) {
-    final day = monday.add(Duration(days: offset));
-    final formatted = 
-      '${day.year}-${day.month.toString().padLeft(2,'0')}-${day.day.toString().padLeft(2,'0')}';
-    final rows = await db.query(
-      'meals',
-      where: 'date = ?',
-      whereArgs: [formatted],
-    );
-    weeklyMeals[formatted] = rows;
+    data[dateStr] = meals;
   }
-  return weeklyMeals;
+
+  return data;
 }
+
+
+
+  Future<void> updateMeal(String key, Meal updatedMeal) async {
+    final box = Hive.box<Meal>(_mealBoxName);
+    await box.put(key, updatedMeal);
+  }
+
+  Future<void> deleteDatabaseFile() async {
+    await Hive.deleteBoxFromDisk(_mealBoxName);
+  }
 }
