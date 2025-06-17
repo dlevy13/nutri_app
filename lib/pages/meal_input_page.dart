@@ -52,32 +52,34 @@ class _MealInputPageState extends State<MealInputPage> {
     });
   }
 
-  Future<void> _addFood(Map<String, dynamic> food, double quantity) async {
-     logger.d("🧪 Type de food : ${food.runtimeType}");
-    final date = DateFormat('yyyy-MM-dd').format(selectedDate);
+ Future<void> _addFood(dynamic food, double quantity) async {
+  logger.d("🧪 Type de food : ${food.runtimeType}");
 
-    final calories = (food['calories'] ?? 0) * quantity / 100;
-    final protein = (food['proteins'] ?? 0) * quantity / 100;
-    final carbs = (food['carbs'] ?? 0) * quantity / 100;
-    final fat = (food['fats'] ?? 0) * quantity / 100;
-    
-   
+  final date = DateFormat('yyyy-MM-dd').format(selectedDate);
 
+  final String name = food is Meal ? food.name : (food['name'] ?? '');
+  final double baseCalories = food is Meal ? food.calories : (food['calories'] ?? 0).toDouble();
+  final double baseProtein  = food is Meal ? food.protein  : (food['proteins'] ?? 0).toDouble();
+  final double baseCarbs    = food is Meal ? food.carbs    : (food['carbs'] ?? 0).toDouble();
+  final double baseFat      = food is Meal ? food.fat      : (food['fats'] ?? 0).toDouble();
 
-    await dbService.addMeal(
-      name: food['name'] ?? '',
-      calories: calories,
-      protein: protein,
-      carbs: carbs,
-      fat: fat,
-      quantity: quantity,
-      mealType: selectedMealType,
-      date: date,
-    );
+  final calories = baseCalories * quantity / 100;
+  final protein = baseProtein * quantity / 100;
+  final carbs = baseCarbs * quantity / 100;
+  final fat = baseFat * quantity / 100;
 
+  await dbService.addMeal(
+    name: name,
+    calories: calories,
+    protein: protein,
+    carbs: carbs,
+    fat: fat,
+    quantity: quantity,
+    mealType: selectedMealType,
+    date: date,
+  );
+}
 
-    _loadMealsFromDatabase();
-  }
 
   Future<void> _loadMealsFromDatabase() async {
     setState(() {
@@ -507,27 +509,35 @@ Future<void> _searchFoodFromAPIButton() async {
                                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                               const SizedBox(height: 8),
                               ListView.separated(
-                                shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(),
-                                itemCount: suggestions.length,
-                                separatorBuilder: (_, __) => const Divider(height: 1),
-                                itemBuilder: (_, i) {
-                                  final suggestion = suggestions[i];
-                                  return ListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    title: Text(suggestion['name']),
-                                    subtitle: Text("${suggestion['calories']} kcal / 100g"),
-                                    trailing: const Icon(Icons.add_circle_outline, color: Colors.green),
-                                    onTap: () {
-                                      _showQuantityDialog(context, suggestion);
-                                      setState(() {
-                                        search = "";
-                                        suggestions = [];
-                                      });
-                                    },
-                                  );
-                                },
-                              ),
+  shrinkWrap: true,
+  physics: const NeverScrollableScrollPhysics(),
+  itemCount: suggestions.length,
+  separatorBuilder: (_, __) => const Divider(height: 1),
+  itemBuilder: (_, i) {
+    final suggestion = suggestions[i];
+
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      title: Text(
+        suggestion is Meal ? suggestion.name : suggestion['name'],
+      ),
+      subtitle: Text(
+        suggestion is Meal
+            ? "${suggestion.calories} kcal / 100g"
+            : "${suggestion['calories']} kcal / 100g",
+      ),
+      trailing: const Icon(Icons.add_circle_outline, color: Colors.green),
+      onTap: () {
+        _showQuantityDialog(context, suggestion);
+        setState(() {
+          search = "";
+          suggestions = [];
+        });
+      },
+    );
+  },
+),
+
                             ],
                           ),
                         ),
