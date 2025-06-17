@@ -1,121 +1,60 @@
 import 'package:flutter/material.dart';
-import '../services/fonctions.dart';  // Importer la fonction getShortenedName
+import '../models/meal.dart';
+import '../services/fonctions.dart';  // si getShortenedName est toujours utile
 
 class MealSummaryPage extends StatelessWidget {
-  final List<Map<String, dynamic>> meals;
+  final List<Meal> meals;
 
   const MealSummaryPage({super.key, required this.meals});
 
   // Calcul des totaux pour chaque nutriment
   double _calculateTotal(String nutrient) {
-    return meals.fold(0.0, (sum, meal) {
-      return sum + meal[nutrient];
-    });
+    switch (nutrient) {
+      case 'calories':
+        return meals.fold(0.0, (sum, meal) => sum + meal.calories);
+      case 'protein':
+        return meals.fold(0.0, (sum, meal) => sum + meal.protein);
+      case 'carbs':
+        return meals.fold(0.0, (sum, meal) => sum + meal.carbs);
+      case 'fat':
+        return meals.fold(0.0, (sum, meal) => sum + meal.fat);
+      default:
+        return 0.0;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Synthèse des repas'),
-      ),
-      body: SingleChildScrollView(  // Ajout du scroll vertical
+      appBar: AppBar(title: const Text('Synthèse des repas')),
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Titre de la page
-            Text(
-              'Synthèse des repas',
-              style: Theme.of(context).textTheme.headlineMedium, // Style headline pour une meilleure lisibilité
-            ),
+            Text('Synthèse des repas', style: Theme.of(context).textTheme.headlineMedium),
             const SizedBox(height: 16),
-            
-            // Tableau des repas avec un défilement horizontal
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal, // Permet de défiler horizontalement si nécessaire
-              child: DataTable(
-                columnSpacing: 10.0,  // Espace entre les colonnes
-                headingRowHeight: 30.0,  // Hauteur des entêtes
-                dataRowHeight: 30.0,  // Hauteur des données
-                columns: [
-                  DataColumn(
-                    label: Text(
-                      'Nom',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold), // Taille de police réduite
-                    ),
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: meals.length,
+              itemBuilder: (context, index) {
+                final meal = meals[index];
+                return Card(
+                  child: ListTile(
+                    title: Text(meal.name),
+                    subtitle: Text("${meal.quantity}g - ${meal.calories} kcal"),
+                    trailing: Text(meal.type),
                   ),
-                  DataColumn(
-                    label: Text(
-                      'Kcal',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  DataColumn(
-                    label: Text(
-                      'Prot. (g)',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  DataColumn(
-                    label: Text(
-                      'Gluc. (g)',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  DataColumn(
-                    label: Text(
-                      'Grais. (g)',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ],
-                rows: meals.map((meal) {
-  return DataRow(cells: [
-    DataCell(Text(
-      getShortenedName(meal.name, wordCount: 3),
-      overflow: TextOverflow.ellipsis,
-      maxLines: 1,
-      style: TextStyle(fontSize: 12),
-    )),
-    DataCell(Text(
-      meal.calories.toStringAsFixed(1),
-      style: TextStyle(fontSize: 12),
-    )),
-    DataCell(Text(
-      meal.protein.toStringAsFixed(1),
-      style: TextStyle(fontSize: 12),
-    )),
-    DataCell(Text(
-      meal.carbs.toStringAsFixed(1),
-      style: TextStyle(fontSize: 12),
-    )),
-    DataCell(Text(
-      meal.fat.toStringAsFixed(1),
-      style: TextStyle(fontSize: 12),
-    )),
-  ]);
-}).toList(),
-              ),
+                );
+              },
             ),
-            
-            const SizedBox(height: 20),
-            
-            // Total des nutriments avec un Wrap pour éviter l'overflow horizontal
-            Wrap(
-              spacing: 16,
-              runSpacing: 8,
-              children: [
-                Text('🔥 ${_calculateTotal("calories").toStringAsFixed(1)} kcal',
-                    style: TextStyle(fontSize: 12)),
-                Text('🍗 ${_calculateTotal("protein").toStringAsFixed(1)} g',
-                    style: TextStyle(fontSize: 12)),
-                Text('🍞 ${_calculateTotal("carbs").toStringAsFixed(1)} g',
-                    style: TextStyle(fontSize: 12)),
-                Text('🥑 ${_calculateTotal("fat").toStringAsFixed(1)} g',
-                    style: TextStyle(fontSize: 12)),
-              ],
-            ),
+            const SizedBox(height: 24),
+            Text("Totaux nutritionnels :", style: Theme.of(context).textTheme.titleMedium),
+            Text("Calories : ${_calculateTotal('calories').toStringAsFixed(1)} kcal"),
+            Text("Protéines : ${_calculateTotal('protein').toStringAsFixed(1)} g"),
+            Text("Glucides : ${_calculateTotal('carbs').toStringAsFixed(1)} g"),
+            Text("Lipides : ${_calculateTotal('fat').toStringAsFixed(1)} g"),
           ],
         ),
       ),

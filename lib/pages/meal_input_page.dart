@@ -53,12 +53,7 @@ class _MealInputPageState extends State<MealInputPage> {
   }
 
   Future<void> _addFood(Map<String, dynamic> food, double quantity) async {
-    //final controller = TextEditingController(text: '100'); // Valeur par défaut 100g
-
-  // Conversion du texte en nombre, avec vérification
-  //final quantityText = controller.text;
-  //final quantity = double.tryParse(quantityText) ?? 100.0; // Si la conversion échoue, utiliser 100g
-
+     logger.d("🧪 Type de food : ${food.runtimeType}");
     final date = DateFormat('yyyy-MM-dd').format(selectedDate);
 
     final calories = (food['calories'] ?? 0) * quantity / 100;
@@ -66,7 +61,7 @@ class _MealInputPageState extends State<MealInputPage> {
     final carbs = (food['carbs'] ?? 0) * quantity / 100;
     final fat = (food['fats'] ?? 0) * quantity / 100;
     
-    
+   
 
 
     await dbService.addMeal(
@@ -579,14 +574,14 @@ Padding(
               label: const Text('Synthèse du repas'),
               
               onPressed: () {
-              final convertedMeals = selectedFoods.map((map) => Meal.fromMap(map)).toList();
-
+              
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => MealSummaryPage(meals: convertedMeals),
+                  builder: (context) => MealSummaryPage(meals: selectedFoods),
                 ),
               );
+
             },
             ),
           ] else
