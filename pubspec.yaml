@@ -27,11 +27,13 @@ dependencies:
   cloud_firestore: ^4.13.5
   hive: ^2.2.3
   hive_flutter: ^1.1.0
+  flutter_dotenv: ^5.1.0
   
 flutter:
   uses-material-design: true
   assets:
     - assets/food_data.json
+    - assets/env
 
 dev_dependencies:
   flutter_test:

@@ -10,6 +10,8 @@ import 'package:flutter/foundation.dart' show compute;
 import 'dart:async'; // pour Timer
 import '../widget/food_search_field.dart';
 import 'package:nutri_app/models/meal.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../services/api_config.dart'; // importe le fichier ci-dessus
 
 //import '../widget/create_food_button.dart';
 
@@ -306,7 +308,7 @@ List<Map<String, dynamic>> _parseOpenFood(String body) {
 // 2) Requête avec compute
 Future<List<Map<String, dynamic>>> _searchFoodOnAPI(String query) async {
   final uri = Uri.http(
-    'localhost:3000',
+    '${getHostIP()}:3000', // 🔁 dynamique
     '/off/cgi/search.pl',
     {
       'search_terms': query,
@@ -317,10 +319,12 @@ Future<List<Map<String, dynamic>>> _searchFoodOnAPI(String query) async {
       'fields': 'product_name,nutriments',
     },
   );
+
   final response = await http.get(uri);
   if (response.statusCode != 200) {
     throw Exception('Échec API (${response.statusCode})');
   }
+
   return compute(_parseOpenFood, response.body);
 }
 
@@ -509,34 +513,34 @@ Future<void> _searchFoodFromAPIButton() async {
                                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                               const SizedBox(height: 8),
                               ListView.separated(
-  shrinkWrap: true,
-  physics: const NeverScrollableScrollPhysics(),
-  itemCount: suggestions.length,
-  separatorBuilder: (_, __) => const Divider(height: 1),
-  itemBuilder: (_, i) {
-    final suggestion = suggestions[i];
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: suggestions.length,
+                              separatorBuilder: (_, __) => const Divider(height: 1),
+                              itemBuilder: (_, i) {
+                                final suggestion = suggestions[i];
 
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(
-        suggestion is Meal ? suggestion.name : suggestion['name'],
-      ),
-      subtitle: Text(
-        suggestion is Meal
-            ? "${suggestion.calories} kcal / 100g"
-            : "${suggestion['calories']} kcal / 100g",
-      ),
-      trailing: const Icon(Icons.add_circle_outline, color: Colors.green),
-      onTap: () {
-        _showQuantityDialog(context, suggestion);
-        setState(() {
-          search = "";
-          suggestions = [];
-        });
-      },
-    );
-  },
-),
+                                return ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  title: Text(
+                                    suggestion is Meal ? suggestion.name : suggestion['name'],
+                                  ),
+                                  subtitle: Text(
+                                    suggestion is Meal
+                                        ? "${suggestion.calories} kcal / 100g"
+                                        : "${suggestion['calories']} kcal / 100g",
+                                  ),
+                                  trailing: const Icon(Icons.add_circle_outline, color: Colors.green),
+                                  onTap: () {
+                                    _showQuantityDialog(context, suggestion);
+                                    setState(() {
+                                      search = "";
+                                      suggestions = [];
+                                    });
+                                  },
+                                );
+                              },
+                            ),
 
                             ],
                           ),
@@ -545,62 +549,62 @@ Future<void> _searchFoodFromAPIButton() async {
                     ),
 
                   // Liste des aliments ajoutés
-Padding(
-  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-  child: Card(
-    elevation: 3,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-    child: Padding(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "🥘 Aliments ajoutés",
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-          ),
-          const SizedBox(height: 8),
-          if (selectedFoods.isNotEmpty) ...[
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: selectedFoods.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (_, i) {
-                final meal = selectedFoods[i];
-                return ListTile(
-                  title: Text(meal.name),
-                  subtitle: Text("${meal.quantity}g - ${meal.calories} kcal"),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () => _removeFood(meal),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.summarize),
-              label: const Text('Synthèse du repas'),
-              
-              onPressed: () {
-              
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => MealSummaryPage(meals: selectedFoods),
-                ),
-              );
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  child: Card(
+                    elevation: 3,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "🥘 Aliments ajoutés",
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                          ),
+                          const SizedBox(height: 8),
+                          if (selectedFoods.isNotEmpty) ...[
+                            ListView.separated(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: selectedFoods.length,
+                              separatorBuilder: (_, __) => const Divider(height: 1),
+                              itemBuilder: (_, i) {
+                                final meal = selectedFoods[i];
+                                return ListTile(
+                                  title: Text(meal.name),
+                                  subtitle: Text("${meal.quantity}g - ${meal.calories} kcal"),
+                                  trailing: IconButton(
+                                    icon: const Icon(Icons.delete, color: Colors.red),
+                                    onPressed: () => _removeFood(meal),
+                                  ),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            ElevatedButton.icon(
+                              icon: const Icon(Icons.summarize),
+                              label: const Text('Synthèse du repas'),
+                              
+                              onPressed: () {
+                              
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => MealSummaryPage(meals: selectedFoods),
+                                ),
+                              );
 
-            },
-            ),
-          ] else
-            const Text("Aucun aliment ajouté. Ajoutez-en un !"),
-        ],
-      ),
-    ),
-  ),
-),
+                            },
+                            ),
+                          ] else
+                            const Text("Aucun aliment ajouté. Ajoutez-en un !"),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
 
                 ],
               ),

@@ -7,7 +7,10 @@ app.use('/off', createProxyMiddleware({
   changeOrigin: true,
   pathRewrite: { '^/off': '' },
   onProxyRes: proxyRes => {
-    proxyRes.headers['Access-Control-Allow-Origin'] = '*';
+   	proxyRes.headers['Access-Control-Allow-Origin'] = '*';
+ 	proxyRes.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,DELETE,OPTIONS';
+  	proxyRes.headers['Access-Control-Allow-Headers'] = '*';
+
   }
 }));
 
