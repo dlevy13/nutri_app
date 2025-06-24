@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';      // Web (IndexedDB + Wasm) :contentReference[oaicite:1]{index=1}
 import 'pages/splash_screen.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -12,7 +12,9 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
-  await dotenv.load(fileName: "assets/env");
+  //await dotenv.load(fileName: "assets/env");
+  // Charge le bon fichier .env selon le mode
+  await dotenv.load(fileName: kReleaseMode ? 'assets/env.production' : 'assets/env');
 
   // ✅ Enregistrement de l'adaptateur Meal
   Hive.registerAdapter(MealAdapter());

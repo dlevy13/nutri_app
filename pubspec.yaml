@@ -34,6 +34,7 @@ flutter:
   assets:
     - assets/food_data.json
     - assets/env
+    - assets/env.production
 
 dev_dependencies:
   flutter_test:

@@ -1,6 +1,6 @@
 {
-  "name": "NutriFit",
-  "short_name": "NutriFit",
+  "name": "NutriApp",
+  "short_name": "NutriApp",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

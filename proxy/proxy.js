@@ -14,4 +14,7 @@ app.use('/off', createProxyMiddleware({
   }
 }));
 
-app.listen(3000, () => console.log('Proxy démarré sur http://localhost:3000/off'));  
+app.get('/', (_, res) => res.send('✅ Proxy Nutri actif'));
+
+const port = process.env.PORT || 3000;
+app.listen(port, () => console.log(`Proxy actif sur http://localhost:${port}`));
