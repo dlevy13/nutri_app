@@ -27,7 +27,7 @@ class _MealInputPageState extends State<MealInputPage> {
   List<Meal> selectedFoods = [];
 
   List<dynamic> foodList = [];
-  
+ 
   List<dynamic> suggestions = [];
   String search = "";
   String selectedMealType = "Petit-déjeuner";
@@ -185,7 +185,7 @@ class _MealInputPageState extends State<MealInputPage> {
             if (!mounted) return;
 
             // Étape 2 : recharger les données
-            await _loadFoodData();
+            await _loadMealsFromDatabase();
 
             // Vérifie encore une fois si le widget est monté
             if (!mounted) return;
@@ -307,18 +307,19 @@ List<Map<String, dynamic>> _parseOpenFood(String body) {
 
 // 2) Requête avec compute
 Future<List<Map<String, dynamic>>> _searchFoodOnAPI(String query) async {
-  final uri = Uri.http(
-    '${getHostIP()}:3000', // 🔁 dynamique
-    '/off/cgi/search.pl',
-    {
-      'search_terms': query,
-      'search_simple': '1',
-      'action': 'process',
-      'json': '1',
-      'page_size': '15',
-      'fields': 'product_name,nutriments',
-    },
-  );
+      final uri = Uri.https(
+      getHostIP(), // sans :3000
+      '/off/cgi/search.pl',
+      {
+        'search_terms': query,
+        'search_simple': '1',
+        'action': 'process',
+        'json': '1',
+        'page_size': '15',
+        'fields': 'product_name,nutriments',
+      },
+    );
+
 
   final response = await http.get(uri);
   if (response.statusCode != 200) {
@@ -531,8 +532,15 @@ Future<void> _searchFoodFromAPIButton() async {
                                         : "${suggestion['calories']} kcal / 100g",
                                   ),
                                   trailing: const Icon(Icons.add_circle_outline, color: Colors.green),
-                                  onTap: () {
-                                    _showQuantityDialog(context, suggestion);
+                                  onTap: () async {
+                                    final item = suggestions[i]; // ou ton élément dans la liste
+                                    final food = item is Meal ? item.toMap() : item;
+                                    
+                                    final result = await _showQuantityDialog(context, food);
+
+                                    if (result == true) {
+                                      await _loadMealsFromDatabase();
+                                    }
                                     setState(() {
                                       search = "";
                                       suggestions = [];
@@ -612,10 +620,10 @@ Future<void> _searchFoodFromAPIButton() async {
     );
   }
 
-  Future<void> _showQuantityDialog(BuildContext context, Map<String, dynamic> food) async {
+  Future<bool?> _showQuantityDialog(BuildContext context, Map<String, dynamic> food) {
   final quantityController = TextEditingController(text: "100");
 
-  showDialog(
+  return showDialog<bool>(
     context: context,
     builder: (_) => AlertDialog(
       title: Text("Ajouter ${food['name']}"),
@@ -636,7 +644,7 @@ Future<void> _searchFoodFromAPIButton() async {
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => Navigator.pop(context), // ⛔ annulation = null
           child: const Text("Annuler"),
         ),
         ElevatedButton(
@@ -646,7 +654,8 @@ Future<void> _searchFoodFromAPIButton() async {
 
             if (parsedQuantity != null && parsedQuantity > 0) {
               await _addFood(food, parsedQuantity);
-              Navigator.pop(context);
+              await _loadMealsFromDatabase();
+              Navigator.pop(context, true); // ✅ on retourne true
             } else {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text("Veuillez entrer une quantité valide.")),
@@ -659,4 +668,5 @@ Future<void> _searchFoodFromAPIButton() async {
     ),
   );
 }
+
 }

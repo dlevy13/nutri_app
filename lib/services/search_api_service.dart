@@ -5,18 +5,19 @@ import 'package:http/http.dart' as http;
 import '../services/api_config.dart';
 
 Future<List<Map<String, dynamic>>> searchFoodOnAPI(String query) async {
-  final uri = Uri.http(
-    '\${getHostIP()}:3000',
-    '/off/cgi/search.pl',
-    {
-      'search_terms': query,
-      'search_simple': '1',
-      'action': 'process',
-      'json': '1',
-      'page_size': '15',
-      'fields': 'product_name,nutriments',
-    },
-  );
+      final uri = Uri.https(
+      getHostIP(), // sans :3000
+      '/off/cgi/search.pl',
+      {
+        'search_terms': query,
+        'search_simple': '1',
+        'action': 'process',
+        'json': '1',
+        'page_size': '15',
+        'fields': 'product_name,nutriments',
+      },
+    );
+
 
   final response = await http.get(uri);
 
