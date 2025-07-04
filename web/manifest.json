@@ -1,6 +1,6 @@
 {
-  "name": "NutriApp",
-  "short_name": "NutriApp",
+  "name": "NutriSport",
+  "short_name": "NutriSport",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

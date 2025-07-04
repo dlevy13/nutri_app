@@ -112,4 +112,26 @@ Future<Map<String, List<Map<String, dynamic>>>> getMealsForTheWeek(Box<Meal> box
   Future<void> deleteDatabaseFile() async {
     await Hive.deleteBoxFromDisk(_mealBoxName);
   }
+  // pour avoir les 10 aliments saisis précédemment par type de repas
+  Future<List<Meal>> getMostFrequentMealsByType(String mealType, {int limit = 10}) async {
+  final box = await Hive.openBox<Meal>('meals');
+  final meals = box.values.where((m) => m.type == mealType);
+
+  final countMap = <String, int>{};
+  final mealMap = <String, Meal>{};
+
+  for (final meal in meals) {
+    countMap[meal.name] = (countMap[meal.name] ?? 0) + 1;
+    mealMap[meal.name] = meal;
+  }
+
+  final sortedNames = countMap.entries.toList()
+    ..sort((a, b) => b.value.compareTo(a.value));
+
+  return sortedNames
+      .take(limit)
+      .map((entry) => mealMap[entry.key]!)
+      .toList();
+}
+
 }

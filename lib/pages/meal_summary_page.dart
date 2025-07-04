@@ -43,7 +43,12 @@ class MealSummaryPage extends StatelessWidget {
                 return Card(
                   child: ListTile(
                     title: Text(meal.name),
-                    subtitle: Text("${meal.quantity}g - ${meal.calories} kcal"),
+                    subtitle: Text(
+                      "${meal.quantity}g - ${meal.calories.toStringAsFixed(1)} kcal\n"
+                      "P: ${meal.protein.toStringAsFixed(1)}g | "
+                      "G: ${meal.carbs.toStringAsFixed(1)}g | "
+                      "L: ${meal.fat.toStringAsFixed(1)}g",
+                    ),
                     trailing: Text(meal.type),
                   ),
                 );

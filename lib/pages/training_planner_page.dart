@@ -19,7 +19,12 @@ class TrainingPlannerPageState extends State<TrainingPlannerPage> {
     "Dimanche"
   ];
 
-  final List<String> activities = ["Repos", "Intensité", "Endurance"];
+  final List<String> activities = [
+      "Repos",
+      "Intensité",
+      "Endurance",
+      "Affûtage"
+    ];
   Map<String, String> selectedActivities = {};
 
   @override

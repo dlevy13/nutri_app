@@ -94,6 +94,22 @@ class _DashboardPageState extends State<DashboardPage> {
       double ratioGluc = 0.50;
       double ratioLip = 0.20;
 
+       void normalizeRatios() {
+        final total = ratioProt + ratioGluc + ratioLip;
+
+        if (total == 0) {
+          // évite une division par zéro
+          ratioProt = 0.30;
+          ratioGluc = 0.50;
+          ratioLip = 0.20;
+          return;
+        }
+
+        ratioProt = ratioProt / total;
+        ratioGluc = ratioGluc / total;
+        ratioLip = ratioLip / total;
+      }
+
       void adjustRatios(String type) {
         if (type == "Intensité") {
           ratioProt += 0.05;
@@ -101,9 +117,14 @@ class _DashboardPageState extends State<DashboardPage> {
         } else if (type == "Endurance") {
           ratioProt += 0.10;
           ratioGluc += 0.30;
-        }
-        // Sinon "Repos", aucun changement
+        } else if (type == "Affûtage") {
+          ratioProt -= 0.15;
+          ratioGluc += 0.15;
+        } 
+        normalizeRatios();
       }
+
+     
 
       adjustRatios(typeToday);
       adjustRatios(typeTomorrow);

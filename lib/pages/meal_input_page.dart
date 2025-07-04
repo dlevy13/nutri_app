@@ -29,6 +29,7 @@ class _MealInputPageState extends State<MealInputPage> {
   List<dynamic> foodList = [];
  
   List<dynamic> suggestions = [];
+  List<Meal> mostFrequentSuggestions = [];
   String search = "";
   String selectedMealType = "Petit-déjeuner";
   final dbService = MealDatabaseService();
@@ -45,6 +46,12 @@ class _MealInputPageState extends State<MealInputPage> {
     selectedDate = DateTime.parse(widget.selectedDate);
     _loadFoodData();
     dbService.init().then((_) => _loadMealsFromDatabase());
+    dbService.getMostFrequentMealsByType(selectedMealType).then((meals) {
+       setState(() {
+       mostFrequentSuggestions = meals;
+  });
+});
+
   }
 
   Future<void> _loadFoodData() async {
@@ -61,9 +68,9 @@ class _MealInputPageState extends State<MealInputPage> {
 
   final String name = food is Meal ? food.name : (food['name'] ?? '');
   final double baseCalories = food is Meal ? food.calories : (food['calories'] ?? 0).toDouble();
-  final double baseProtein  = food is Meal ? food.protein  : (food['proteins'] ?? 0).toDouble();
+  final double baseProtein  = food is Meal ? food.protein  : (food['protein'] ?? 0).toDouble();
   final double baseCarbs    = food is Meal ? food.carbs    : (food['carbs'] ?? 0).toDouble();
-  final double baseFat      = food is Meal ? food.fat      : (food['fats'] ?? 0).toDouble();
+  final double baseFat      = food is Meal ? food.fat      : (food['fat'] ?? 0).toDouble();
 
   final calories = baseCalories * quantity / 100;
   final protein = baseProtein * quantity / 100;
@@ -298,9 +305,9 @@ List<Map<String, dynamic>> _parseOpenFood(String body) {
     return {
       'name':     product['product_name'] ?? 'Inconnu',
       'calories': calories,
-      'proteins': parseDouble(nutr['proteins_100g']),
+      'protein': parseDouble(nutr['proteins_100g']),
       'carbs':    parseDouble(nutr['carbohydrates_100g']),
-      'fats':     parseDouble(nutr['fat_100g']),
+      'fat':     parseDouble(nutr['fat_100g']),
     };
   }).toList();
 }
@@ -412,6 +419,11 @@ Future<void> _searchFoodFromAPIButton() async {
                                     selectedMealType = value;
                                   });
                                   _loadMealsFromDatabase();
+                                  dbService.getMostFrequentMealsByType(value).then((meals) {
+                                    setState(() {
+                                      mostFrequentSuggestions = meals;
+                                    });
+                                  });
                                 }
                               },
                               items: ["Petit-déjeuner", "Déjeuner", "Dîner", "Collation"]
@@ -442,55 +454,96 @@ Future<void> _searchFoodFromAPIButton() async {
                             });
                           },
                         ),
+                        if (mostFrequentSuggestions.isNotEmpty && search.length < 3)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                            child: Card(
+                              color: Colors.green.shade50,
+                              elevation: 3,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text("💡 Suggestions fréquentes",
+                                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                                    const SizedBox(height: 8),
+                                    ListView.separated(
+                                      shrinkWrap: true,
+                                      physics: const NeverScrollableScrollPhysics(),
+                                      itemCount: mostFrequentSuggestions.length,
+                                      separatorBuilder: (_, __) => const Divider(height: 1),
+                                      itemBuilder: (_, i) {
+                                        final meal = mostFrequentSuggestions[i];
+                                        return ListTile(
+                                          title: Text(meal.name),
+                                          subtitle: Text("${meal.calories} kcal / 100g"),
+                                          trailing: const Icon(Icons.add_circle_outline, color: Colors.green),
+                                          onTap: () async {
+                                            final result = await _showQuantityDialog(context, meal.toMap());
+                                            if (result == true) {
+                                              await _loadMealsFromDatabase();
+                                            }
+                                          },
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+
                         if (isSearching)
                           const Padding(
                             padding: EdgeInsets.all(12),
                             child: Center(child: CircularProgressIndicator()),
                           ),
                           if (!isSearching && search.length >= 3 && suggestions.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Card(
-                      elevation: 3,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          children: [
-                            // BOUTON "Créer cet aliment" (ORANGE)
-                            ElevatedButton.icon(
-                              onPressed: () {
-                                _showCreateFoodDialog(context, search);
-                              },
-                              icon: const Icon(Icons.add_circle_outline),
-                              label: const Text("Créer cet aliment"),
-                              style: ElevatedButton.styleFrom(
-                                minimumSize: const Size(double.infinity, 48),
-                                backgroundColor: Colors.orange,
+                          Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Card(
+                              elevation: 3,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Column(
+                                  children: [
+                                    // BOUTON "Créer cet aliment" (ORANGE)
+                                    ElevatedButton.icon(
+                                      onPressed: () {
+                                        _showCreateFoodDialog(context, search);
+                                      },
+                                      icon: const Icon(Icons.add_circle_outline),
+                                      label: const Text("Créer cet aliment"),
+                                      style: ElevatedButton.styleFrom(
+                                        minimumSize: const Size(double.infinity, 48),
+                                        backgroundColor: Colors.orange,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    // BOUTON "Rechercher sur Internet" (BLEU)
+                                    ElevatedButton.icon(
+                                      onPressed: isSearching ? null : _searchFoodFromAPIButton,
+                                      icon: isSearching
+                                          ? const SizedBox(
+                                              width: 20,
+                                              height: 20,
+                                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                            )
+                                          : const Icon(Icons.cloud_download),
+                                      label: Text(isSearching ? "Recherche..." : "Rechercher sur Internet"),
+                                      style: ElevatedButton.styleFrom(
+                                        minimumSize: const Size(double.infinity, 48),
+                                        backgroundColor: Colors.blue,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
-                            const SizedBox(height: 12),
-                            // BOUTON "Rechercher sur Internet" (BLEU)
-                            ElevatedButton.icon(
-                              onPressed: isSearching ? null : _searchFoodFromAPIButton,
-                              icon: isSearching
-                                  ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                    )
-                                  : const Icon(Icons.cloud_download),
-                              label: Text(isSearching ? "Recherche..." : "Rechercher sur Internet"),
-                              style: ElevatedButton.styleFrom(
-                                minimumSize: const Size(double.infinity, 48),
-                                backgroundColor: Colors.blue,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
+                          ),
 
 
                       ],
