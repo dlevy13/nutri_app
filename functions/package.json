@@ -1,0 +1,21 @@
+{
+  "name": "nutri-functions",
+  "description": "Firebase Functions for NutriApp proxy",
+  "main": "lib/index.js",
+  "scripts": {
+      "build": "tsc",
+      "start": "npm run build && firebase emulators:start --only functions",
+      "lint": "echo \"no lint script defined\""
+    },
+  "engines": {
+    "node": "18"
+  },
+  "dependencies": {
+    "firebase-functions": "^4.4.1",
+    "node-fetch": "^2.6.7"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "private": true
+}

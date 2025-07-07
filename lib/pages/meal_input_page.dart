@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/meal_database_service.dart';
+import '../services/search_api_service.dart';
+
 import 'meal_summary_page.dart';
 import 'package:intl/intl.dart';
 import '../log.dart';
@@ -280,61 +282,11 @@ class _MealInputPageState extends State<MealInputPage> {
 }
 
 /// 3. Cherche dans API
-// 1) Fonction de parsing qui tourne dans un isolate
-// 1) Parsing JSON en isolate
-List<Map<String, dynamic>> _parseOpenFood(String body) {
-  final data = json.decode(body) as Map<String, dynamic>;
-  final products = (data['products'] as List?) ?? <dynamic>[];
 
-  double parseDouble(dynamic v) {
-    if (v == null) return 0;
-    if (v is num) return v.toDouble();
-    if (v is String) return double.tryParse(v) ?? 0;
-    return 0;
-  }
-
-  return products.map((product) {
-    final nutr = (product['nutriments'] ?? {}) as Map<String, dynamic>;
-
-    // calories : priorise le champ kcal, sinon convertis joules → kcal
-    final rawKcal = parseDouble(nutr['energy-kcal_100g']);
-    final calories = rawKcal > 0
-        ? rawKcal
-        : parseDouble(nutr['energy_100g']) / 4.184;
-
-    return {
-      'name':     product['product_name'] ?? 'Inconnu',
-      'calories': calories,
-      'protein': parseDouble(nutr['proteins_100g']),
-      'carbs':    parseDouble(nutr['carbohydrates_100g']),
-      'fat':     parseDouble(nutr['fat_100g']),
-    };
-  }).toList();
-}
 
 // 2) Requête avec compute
-Future<List<Map<String, dynamic>>> _searchFoodOnAPI(String query) async {
-      final uri = Uri.https(
-      getHostIP(), // sans :3000
-      '/off/cgi/search.pl',
-      {
-        'search_terms': query,
-        'search_simple': '1',
-        'action': 'process',
-        'json': '1',
-        'page_size': '15',
-        'fields': 'product_name,nutriments',
-      },
-    );
 
 
-  final response = await http.get(uri);
-  if (response.statusCode != 200) {
-    throw Exception('Échec API (${response.statusCode})');
-  }
-
-  return compute(_parseOpenFood, response.body);
-}
 
 
 Future<void> _searchFoodFromAPIButton() async {
@@ -342,7 +294,7 @@ Future<void> _searchFoodFromAPIButton() async {
   setState(() => isSearching = true);
 
   try {
-    final apiResults = await _searchFoodOnAPI(search);
+    final apiResults = await searchFoodOnAPI(search);
 
     if (apiResults.isNotEmpty) {
       // 4) Insertion en parallèle pour gagner du temps
