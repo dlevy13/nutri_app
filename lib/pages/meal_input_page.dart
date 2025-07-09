@@ -13,7 +13,9 @@ import 'dart:async'; // pour Timer
 import '../widget/food_search_field.dart';
 import 'package:nutri_app/models/meal.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import '../services/api_config.dart'; // importe le fichier ci-dessus
+import '../services/api_config.dart'; 
+import 'package:hive/hive.dart';
+// importe le fichier ci-dessus
 
 //import '../widget/create_food_button.dart';
 
@@ -34,7 +36,8 @@ class _MealInputPageState extends State<MealInputPage> {
   List<Meal> mostFrequentSuggestions = [];
   String search = "";
   String selectedMealType = "Petit-déjeuner";
-  final dbService = MealDatabaseService();
+ final dbService = MealDatabaseService(Hive.box<Meal>('meals'));
+
     
   bool isLoading = false;
   DateTime selectedDate = DateTime.now();
@@ -47,7 +50,7 @@ class _MealInputPageState extends State<MealInputPage> {
     super.initState();
     selectedDate = DateTime.parse(widget.selectedDate);
     _loadFoodData();
-    dbService.init().then((_) => _loadMealsFromDatabase());
+    //dbService.init().then((_) => _loadMealsFromDatabase());
     dbService.getMostFrequentMealsByType(selectedMealType).then((meals) {
        setState(() {
        mostFrequentSuggestions = meals;
@@ -130,7 +133,7 @@ class _MealInputPageState extends State<MealInputPage> {
       });
 
       await dbService.deleteDatabaseFile();
-      await dbService.init();
+      //await dbService.init();
       await _loadMealsFromDatabase();
 
       setState(() {
@@ -188,6 +191,7 @@ class _MealInputPageState extends State<MealInputPage> {
             );
 
             // Étape 1 : ajouter le repas
+
             await dbService.addCustomFood(newMeal);
 
             // Vérifie si le widget est encore monté

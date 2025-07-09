@@ -9,6 +9,8 @@ import 'meal_input_page.dart';
 import '../services/meal_database_service.dart';
 import 'package:hive/hive.dart';
 import 'package:nutri_app/models/meal.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../log.dart';
 
 
 
@@ -22,7 +24,8 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
-  final dbService = MealDatabaseService();
+ final dbService = MealDatabaseService(Hive.box<Meal>('meals'));
+
 
   Map<String, double> macros = {"Protéines": 0, "Glucides": 0, "Lipides": 0};
   final List<Color> colors = [
@@ -74,8 +77,8 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Future<void> _loadMeals() async {
-    final box = await Hive.openBox<Meal>('meals');
-    final data = await dbService.getMealsForTheWeek(box);
+    final data = await dbService.getMealsForTheWeek();
+
 
     setState(() {
       weeklyMeals = data;
@@ -201,20 +204,34 @@ Future<double> _getAdjustedTDEE() async {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Tableau de bord'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.person),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ProfileFormPage()),
-            ).then((_) {
-              _loadProfileAndCalculate();
-              _loadMeals();
-            }),
-          ),
-        ],
-      ),
+  title: const Text('Tableau de bord'),
+  actions: [
+    // 👤 Bouton profil
+    IconButton(
+      icon: const Icon(Icons.person),
+      tooltip: 'Mon profil',
+      onPressed: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const ProfileFormPage()),
+      ).then((_) {
+        _loadProfileAndCalculate();
+        _loadMeals();
+      }),
+    ),
+
+    // 🚪 Bouton déconnexion
+    IconButton(
+      icon: const Icon(Icons.logout),
+      tooltip: 'Se déconnecter',
+      onPressed: () async {
+        await FirebaseAuth.instance.signOut();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Déconnecté")),
+        );
+      },
+    ),
+  ],
+),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
