@@ -48,4 +48,26 @@ class AuthService {
         return bmr * 1.5;
     }
   }
+
+  Future<void> updateUserProfileData({
+      required double poids,
+      required int age,
+      required String sexe,
+      required double taille,
+      required String activite,
+    }) async {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
+
+      final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+
+      await userRef.set({
+        'poids': poids,
+        'age': age,
+        'sexe': sexe,
+        'taille': taille,
+        'activite': activite,
+      }, SetOptions(merge: true));
+    }
+
 }

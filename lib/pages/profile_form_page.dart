@@ -1,169 +1,125 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/auth_service.dart';
 
 class ProfileFormPage extends StatefulWidget {
   const ProfileFormPage({super.key});
 
   @override
-  ProfileFormPageState createState() => ProfileFormPageState();
+  State<ProfileFormPage> createState() => _ProfileFormPageState();
 }
 
-class ProfileFormPageState extends State<ProfileFormPage> {
+class _ProfileFormPageState extends State<ProfileFormPage> {
   final _formKey = GlobalKey<FormState>();
-  double poids = 70;
-  double taille = 175;
-  int age = 30;
-  String sexe = 'Homme';
-  String activite = 'Modéré';
-  String? derniereMiseAJour;
 
-  final List<String> niveauxActivite = [
-    'Sédentaire',
-    'Modéré',
-    'Actif',
-    'Très actif'
-  ];
+  final TextEditingController poidsController = TextEditingController();
+  final TextEditingController tailleController = TextEditingController();
+  final TextEditingController ageController = TextEditingController();
+  final TextEditingController prenomController = TextEditingController();
+
+  String selectedSexe = 'Homme';
+  String selectedActivite = 'Modéré';
 
   @override
   void initState() {
     super.initState();
-    _loadPrefs();
+    _loadProfile();
   }
 
-  void _loadPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      poids = prefs.getDouble('poids') ?? 70;
-      taille = prefs.getDouble('taille') ?? 175;
-      age = prefs.getInt('age') ?? 30;
-      sexe = prefs.getString('sexe') ?? 'Homme';
-      activite = prefs.getString('activite') ?? 'Modéré';
-      derniereMiseAJour = prefs.getString('tdee_updated_at');
-    });
+  Future<void> _loadProfile() async {
+    final user = FirebaseAuth.instance.currentUser;
+    prenomController.text = user?.displayName ?? '';
+
+    final uid = user?.uid;
+    if (uid != null) {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      if (doc.exists) {
+        final data = doc.data()!;
+        poidsController.text = (data['poids'] ?? 70).toString();
+        tailleController.text = (data['taille'] ?? 175).toString();
+        ageController.text = (data['age'] ?? 30).toString();
+        selectedSexe = data['sexe'] ?? 'Homme';
+        selectedActivite = data['activite'] ?? 'Modéré';
+        setState(() {});
+      }
+    }
   }
 
-  // Fonction qui calcule et enregistre les données
-  Future<void> _savePrefsAndTDEE() async {
-    final prefs = await SharedPreferences.getInstance();
+  Future<void> _saveProfile() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      await user.updateDisplayName(prenomController.text);
 
-    await prefs.setDouble('poids', poids);
-    await prefs.setDouble('taille', taille);
-    await prefs.setInt('age', age);
-    await prefs.setString('sexe', sexe);
-    await prefs.setString('activite', activite);
+      await AuthService().updateUserProfileData(
+        poids: double.tryParse(poidsController.text) ?? 70,
+        age: int.tryParse(ageController.text) ?? 30,
+        taille: double.tryParse(tailleController.text) ?? 175,
+        sexe: selectedSexe,
+        activite: selectedActivite,
+      );
 
-    // Calcul du TDEE
-    double bmr = sexe == 'Femme'
-        ? 655 + (9.563 * poids) + (1.850 * taille) - (4.676 * age)
-        : 66.5 + (13.75 * poids) + (5.003 * taille) - (6.755 * age);
-
-    final activityFactors = {
-      'Sédentaire': 1.2,
-      'Modéré': 1.375,
-      'Actif': 1.55,
-      'Très actif': 1.725,
-    };
-    final factor = activityFactors[activite] ?? 1.375;
-    final tdee = bmr * factor;
-
-    await prefs.setDouble('tdee', tdee);
-    await prefs.setString('tdee_updated_at', DateTime.now().toIso8601String());
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Profil mis à jour")),
+        );
+        Navigator.pop(context);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    DateTime? miseAJourDate;
-    if (derniereMiseAJour != null) {
-      try {
-        miseAJourDate = DateTime.parse(derniereMiseAJour!).toLocal();
-      } catch (_) {}
-    }
-
     return Scaffold(
-      appBar: AppBar(title: const Text("Profil utilisateur")),
+      appBar: AppBar(title: const Text('Mon Profil')),
       body: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
           child: ListView(
             children: [
-              if (miseAJourDate != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Text(
-                    "Dernière mise à jour : ${miseAJourDate.day}/${miseAJourDate.month}/${miseAJourDate.year} à ${miseAJourDate.hour}h${miseAJourDate.minute.toString().padLeft(2, '0')}",
-                    style: const TextStyle(color: Colors.grey),
-                  ),
-                ),
-              _slider("Poids (kg)", poids, 40, 150, (v) => setState(() => poids = v)),
-              _slider("Taille (cm)", taille, 140, 220, (v) => setState(() => taille = v)),
-              _slider("Âge", age.toDouble(), 12, 100, (v) => setState(() => age = v.toInt())),
-              const SizedBox(height: 12),
-              _dropdown<String>(
-                label: "Sexe",
-                value: sexe,
-                items: ['Homme', 'Femme'],
-                onChanged: (val) => setState(() => sexe = val!),
+              TextFormField(
+                controller: prenomController,
+                decoration: const InputDecoration(labelText: 'Prénom'),
               ),
-              _dropdown<String>(
-                label: "Niveau d'activité",
-                value: activite,
-                items: niveauxActivite,
-                onChanged: (val) => setState(() => activite = val!),
+              TextFormField(
+                controller: poidsController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Poids (kg)'),
               ),
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.save),
-                label: const Text("Enregistrer"),
-                onPressed: () async {
-                  await _savePrefsAndTDEE();
-                  Navigator.pop(context);
-                },
+              TextFormField(
+                controller: tailleController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Taille (cm)'),
+              ),
+              TextFormField(
+                controller: ageController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Âge'),
+              ),
+              DropdownButtonFormField<String>(
+                value: selectedSexe,
+                items: ['Homme', 'Femme'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                onChanged: (val) => setState(() => selectedSexe = val ?? 'Homme'),
+                decoration: const InputDecoration(labelText: 'Sexe'),
+              ),
+              DropdownButtonFormField<String>(
+                value: selectedActivite,
+                items: ['Sédentaire', 'Modéré', 'Actif', 'Très actif']
+                    .map((a) => DropdownMenuItem(value: a, child: Text(a)))
+                    .toList(),
+                onChanged: (val) => setState(() => selectedActivite = val ?? 'Modéré'),
+                decoration: const InputDecoration(labelText: 'Activité physique'),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: _saveProfile,
+                child: const Text('Enregistrer'),
               ),
             ],
           ),
         ),
       ),
-    );
-  }
-
-  Widget _slider(String label, double value, double min, double max, void Function(double) onChanged) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text("$label : ${value.toStringAsFixed(0)}"),
-        Slider(
-          value: value,
-          min: min,
-          max: max,
-          divisions: (max - min).toInt(),
-          onChanged: onChanged,
-        ),
-        const SizedBox(height: 8),
-      ],
-    );
-  }
-
-  Widget _dropdown<T>({
-    required String label,
-    required T value,
-    required List<T> items,
-    required ValueChanged<T?> onChanged,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label),
-        DropdownButtonFormField<T>(
-          value: value,
-          items: items.map((item) => DropdownMenuItem<T>(
-            value: item,
-            child: Text(item.toString()),
-          )).toList(),
-          onChanged: onChanged,
-        ),
-        const SizedBox(height: 8),
-      ],
     );
   }
 }

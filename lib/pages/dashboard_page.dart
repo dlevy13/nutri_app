@@ -73,7 +73,8 @@ class _DashboardPageState extends State<DashboardPage> {
 
     await prefs.setDouble('tdee', tdee);
 
-    _updateMacros(); // Recalculer les macros au cas où selectedDate est déjà chargé
+    _updateMacros(); 
+    setState(() {}); // Recalculer les macros au cas où selectedDate est déjà chargé
   }
 
   Future<void> _loadMeals() async {
@@ -198,39 +199,55 @@ Future<double> _getAdjustedTDEE() async {
 
   @override
   Widget build(BuildContext context) {
-    //final total = macros.entries
-      //.where((e) => e.key != "Calories")
-      //.fold(0.0, (sum, e) => sum + e.value);
+   final String prenom = FirebaseAuth.instance.currentUser?.displayName ?? '';
 
     return Scaffold(
       appBar: AppBar(
   title: const Text('Tableau de bord'),
   actions: [
-    // 👤 Bouton profil
-    IconButton(
-      icon: const Icon(Icons.person),
-      tooltip: 'Mon profil',
-      onPressed: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const ProfileFormPage()),
-      ).then((_) {
-        _loadProfileAndCalculate();
-        _loadMeals();
-      }),
-    ),
+  Column(
+    mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.person),
+                tooltip: 'Mon profil',
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ProfileFormPage()),
+                  ).then((_) {
+                    _loadProfileAndCalculate();
+                    _loadMeals();
+                  });
+                },
+              ),
+            const SizedBox(height: 2), // petit espacement
+            SizedBox(
+              height: 12,
+              width: 60, // limite la largeur pour éviter le débordement
+              child: Text(
+                prenom,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 10),
+              ),
+            ),
+        ],
 
-    // 🚪 Bouton déconnexion
-    IconButton(
-      icon: const Icon(Icons.logout),
-      tooltip: 'Se déconnecter',
-      onPressed: () async {
-        await FirebaseAuth.instance.signOut();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Déconnecté")),
-        );
-      },
-    ),
-  ],
+  ),
+  IconButton(
+    icon: const Icon(Icons.logout),
+    tooltip: 'Se déconnecter',
+    onPressed: () async {
+      await FirebaseAuth.instance.signOut();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Déconnecté")),
+      );
+    },
+  ),
+  const SizedBox(width: 8), // un petit espace
+],
+
 ),
       body: ListView(
         padding: const EdgeInsets.all(16),
