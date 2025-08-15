@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/app_user.dart';
 import 'fonctions.dart'; // pour saveUserToFirestore()
+import '../log.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -9,11 +10,11 @@ class AuthService {
   Future<UserCredential> registerUser({
     required String email,
     required String password,
-    required String name,
+    required String prenom,
     required int age,
-    required double height,
-    required double weight,
-    required String activityLevel,
+    required double taille,
+    required double poids,
+    required String activite,
   }) async {
     final credential = await _auth.createUserWithEmailAndPassword(
       email: email,
@@ -22,12 +23,12 @@ class AuthService {
 
     final newUser = AppUser(
       uid: credential.user!.uid,
-      name: name,
+      prenom: prenom,
       age: age,
-      height: height,
-      weight: weight,
-      activityLevel: activityLevel,
-      tdee: _calculateTDEE(weight, height, age, activityLevel),
+      taille: taille,
+      poids: poids,
+      activite: activite,
+      tdee: _calculateTDEE(poids, taille, age, activite),
     );
 
     await saveUserToFirestore(newUser);
@@ -35,17 +36,19 @@ class AuthService {
     return credential;
   }
 
-  double _calculateTDEE(double weight, double height, int age, String activityLevel) {
-    double bmr = 10 * weight + 6.25 * height - 5 * age + 5; // formule de Mifflin
-    switch (activityLevel) {
-      case "low":
-        return bmr * 1.4;
-      case "moderate":
-        return bmr * 1.6;
-      case "high":
-        return bmr * 1.8;
-      default:
-        return bmr * 1.5;
+  double _calculateTDEE(double poids, double taille, int age, String activite) {
+    double bmr = 10 * poids + 6.25 * taille - 5 * age + 5; // formule de Mifflin
+    switch (activite) {
+        case "Sédentaire":
+          return bmr * 1.4;
+        case "Modéré":
+          return bmr * 1.6;
+        case "Actif":
+          return bmr * 1.8;
+        case "Très actif":
+          return bmr * 2.0;
+        default:
+          return bmr * 1.5;
     }
   }
 
@@ -69,5 +72,19 @@ class AuthService {
         'activite': activite,
       }, SetOptions(merge: true));
     }
+Future<UserCredential?> signIn(String email, String password) async {
+  try {
+    logger.d("📌 Tentative connexion : $email");
+    final credential = await _auth.signInWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+    logger.d("✅ Connexion réussie UID: ${credential.user!.uid}");
+    return credential;
+  } catch (e) {
+    logger.d("❌ Erreur connexion : $e");
+    return null;
+  }
+}
 
 }

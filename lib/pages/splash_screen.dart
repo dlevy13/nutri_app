@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'dashboard_page.dart'; // Assurez-vous d'importer la page vers laquelle vous voulez naviguer
+import '../dashboard/dashboard_page.dart'; // Assurez-vous d'importer la page vers laquelle vous voulez naviguer
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});

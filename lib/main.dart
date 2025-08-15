@@ -1,38 +1,87 @@
-import 'package:flutter/foundation.dart' show kReleaseMode;
-import 'package:flutter/material.dart';      // Web (IndexedDB + Wasm) :contentReference[oaicite:1]{index=1}
-import 'pages/splash_screen.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart'; // NOUVEAU
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'models/meal.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart'; 
 import 'package:firebase_auth/firebase_auth.dart';
-import 'pages/dashboard_page.dart';
-import 'pages/welcome_page.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // NOUVEAU
+import 'package:web/web.dart' as web;
+import 'package:flutter/foundation.dart' show kIsWeb;
+
+import 'firebase_options.dart'; 
+import 'log.dart';
+import 'models/meal.dart';
+import 'models/analysis.dart';
+import 'services/strava_service.dart';
+import '../providers/common_providers.dart';
+import 'repositories/strava_repository.dart';
+import '/dashboard/dashboard_notifier.dart';
+// NOUVEAU : Importer les fichiers où les providers sont définis
+
+import 'repositories/meal_repository.dart';
 
 
+// NOUVEAU : On importe la page depuis son nouveau dossier
+import 'dashboard/dashboard_page.dart';
+import 'pages/welcome_page.dart'; // 'welcome_page' reste sûrement dans 'pages'
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await EnvLoader.load();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await Hive.initFlutter();
-  // Charge le bon fichier .env selon le mode
-  await dotenv.load(fileName: kReleaseMode ? 'assets/env.production' : 'assets/env');
-
-  // ✅ Enregistrement de l'adaptateur Meal
   Hive.registerAdapter(MealAdapter());
-  await Hive.openBox<Meal>('meals');
+  Hive.registerAdapter(AnalysisAdapter());
 
-  // 2) Initialisation du formatage des dates (locale FR)
-  await initializeDateFormatting('fr_FR');
+  final mealBox = await Hive.openBox<Meal>('meals');
+  final analysisBox = await Hive.openBox<Analysis>('analyses');
+  final prefs = await SharedPreferences.getInstance();
 
-  runApp(const NutriFitApp());
+  await initializeDateFormatting('fr_FR', null);
+
+  // On crée le "conteneur" de providers en avance
+  final container = ProviderContainer(
+    overrides: [
+      sharedPreferencesProvider.overrideWithValue(prefs),
+      mealBoxProvider.overrideWithValue(mealBox),
+      analysisBoxProvider.overrideWithValue(analysisBox),
+    ],
+  );
+  
+  final uri = Uri.base;
+
+if (uri.queryParameters.containsKey("code")) {
+  final code = uri.queryParameters["code"]!;
+  logger.d("📥 Strava OAuth code detected: $code");
+
+  try {
+    // ✅ Attendre que Firebase Auth ait rechargé l'utilisateur (UID non nul)
+    await FirebaseAuth.instance.authStateChanges().firstWhere((u) => u != null);
+
+    await StravaService().exchangeToken(code);
+    logger.d("✅ Strava token exchanged and stored successfully.");
+
+    if (kIsWeb) {
+      // ✅ nettoie l’URL et évite de revenir sur l’URL avec ?code=
+      web.window.location.replace("/");
+      return;
+    }
+  } catch (e) {
+    logger.e("❌ Error exchanging Strava token: $e");
+  }
 }
 
+  runApp(
+    // Ce widget permet à l'application d'utiliser le conteneur que nous avons créé
+    UncontrolledProviderScope(
+      container: container,
+      child: const NutriFitApp(),
+    ),
+  );
+}
 
+// AuthWrapper redevient un simple StatelessWidget
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
 
@@ -44,16 +93,16 @@ class AuthWrapper extends StatelessWidget {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         } else if (snapshot.hasData) {
-          return const DashboardPage(); // utilisateur connecté
+          return const DashboardPage();
         } else {
-          return const WelcomePage(); // non connecté
+          return const WelcomePage();
         }
       },
     );
   }
 }
 
-
+// NutriFitApp redevient aussi très simple
 class NutriFitApp extends StatelessWidget {
   const NutriFitApp({super.key});
 

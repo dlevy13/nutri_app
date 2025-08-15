@@ -1,13 +1,17 @@
 {
   "compilerOptions": {
-    "lib": ["es6", "dom"],
+    "target": "ES2022",
     "module": "commonjs",
-    "noImplicitReturns": true,
+    "rootDir": "src",
     "outDir": "lib",
-    "sourceMap": true,
     "strict": true,
-    "target": "es2017"
+    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "sourceMap": true,
+    "types": ["node"],
+    "skipLibCheck": true,                 // ✅ évite les erreurs dans node_modules
+    "lib": ["ES2022", "ESNext", "esnext.disposable"]  // ✅ pour Disposable
   },
-  "compileOnSave": true,
   "include": ["src"]
 }

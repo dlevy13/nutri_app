@@ -1,0 +1,289 @@
+[
+  {
+    "aliment": "Pomme",
+    "groupe": "fruit",
+    "poids": 150,
+    "unite": "pièce",
+    "commentaire": "taille moyenne"
+  },
+  {
+    "aliment": "Banane",
+    "groupe": "fruit",
+    "poids": 120,
+    "unite": "pièce",
+    "commentaire": "sans peau"
+  },
+  {
+    "aliment": "Orange",
+    "groupe": "fruit",
+    "poids": 160,
+    "unite": "pièce",
+    "commentaire": "sans peau"
+  },
+  {
+    "aliment": "Fraise",
+    "groupe": "fruit",
+    "poids": 150,
+    "unite": "portion",
+    "commentaire": "une barquette"
+  },
+  {
+    "aliment": "Kiwi",
+    "groupe": "fruit",
+    "poids": 90,
+    "unite": "pièce",
+    "commentaire": ""
+  },
+  {
+    "aliment": "Avocat",
+    "groupe": "fruit",
+    "poids": 150,
+    "unite": "pièce",
+    "commentaire": "sans noyau ni peau"
+  },
+  {
+    "aliment": "Tomate",
+    "groupe": "légume",
+    "poids": 120,
+    "unite": "pièce",
+    "commentaire": "taille moyenne"
+  },
+  {
+    "aliment": "Carotte",
+    "groupe": "légume",
+    "poids": 100,
+    "unite": "pièce",
+    "commentaire": ""
+  },
+  {
+    "aliment": "Courgette",
+    "groupe": "légume",
+    "poids": 250,
+    "unite": "pièce",
+    "commentaire": "taille moyenne"
+  },
+  {
+    "aliment": "Pomme de terre",
+    "groupe": "légume",
+    "poids": 150,
+    "unite": "pièce",
+    "commentaire": "taille moyenne"
+  },
+  {
+    "aliment": "Oignon",
+    "groupe": "légume",
+    "poids": 100,
+    "unite": "pièce",
+    "commentaire": ""
+  },
+  {
+    "aliment": "Brocoli",
+    "groupe": "légume",
+    "poids": 200,
+    "unite": "portion",
+    "commentaire": ""
+  },
+  {
+    "aliment": "Pain",
+    "groupe": "féculent",
+    "poids": 25,
+    "unite": "tranche",
+    "commentaire": "tranche de baguette"
+  },
+  {
+    "aliment": "Pâtes",
+    "groupe": "féculent",
+    "poids": 100,
+    "unite": "portion",
+    "commentaire": "poids cru"
+  },
+  {
+    "aliment": "Riz",
+    "groupe": "féculent",
+    "poids": 80,
+    "unite": "portion",
+    "commentaire": "poids cru"
+  },
+  {
+    "aliment": "Flocon d'avoine",
+    "groupe": "féculent",
+    "poids": 40,
+    "unite": "portion",
+    "commentaire": "pour un bol"
+  },
+  {
+    "aliment": "Lentilles",
+    "groupe": "féculent",
+    "poids": 80,
+    "unite": "portion",
+    "commentaire": "poids cru"
+  },
+  {
+    "aliment": "Quinoa",
+    "groupe": "féculent",
+    "poids": 70,
+    "unite": "portion",
+    "commentaire": "poids cru"
+  },
+  {
+    "aliment": "Yaourt nature",
+    "groupe": "produit laitier",
+    "poids": 125,
+    "unite": "pot",
+    "commentaire": ""
+  },
+  {
+    "aliment": "Fromage blanc",
+    "groupe": "produit laitier",
+    "poids": 100,
+    "unite": "portion",
+    "commentaire": ""
+  },
+  {
+    "aliment": "Lait",
+    "groupe": "produit laitier",
+    "poids": 150,
+    "unite": "verre",
+    "commentaire": "verre standard"
+  },
+  {
+    "aliment": "Comté",
+    "groupe": "produit laitier",
+    "poids": 30,
+    "unite": "portion",
+    "commentaire": ""
+  },
+  {
+    "aliment": "Emmental",
+    "groupe": "produit laitier",
+    "poids": 30,
+    "unite": "portion",
+    "commentaire": ""
+  },
+  {
+    "aliment": "Oeuf",
+    "groupe": "viande/oeuf/poisson",
+    "poids": 50,
+    "unite": "pièce",
+    "commentaire": "sans coquille"
+  },
+  {
+    "aliment": "Blanc de poulet",
+    "groupe": "viande/oeuf/poisson",
+    "poids": 120,
+    "unite": "portion",
+    "commentaire": "escalope"
+  },
+  {
+    "aliment": "Steak haché",
+    "groupe": "viande/oeuf/poisson",
+    "poids": 100,
+    "unite": "pièce",
+    "commentaire": "5% MG"
+  },
+  {
+    "aliment": "Jambon blanc",
+    "groupe": "viande/oeuf/poisson",
+    "poids": 40,
+    "unite": "tranche",
+    "commentaire": ""
+  },
+  {
+    "aliment": "Saumon",
+    "groupe": "viande/oeuf/poisson",
+    "poids": 130,
+    "unite": "pavé",
+    "commentaire": ""
+  },
+  {
+    "aliment": "Thon",
+    "groupe": "viande/oeuf/poisson",
+    "poids": 100,
+    "unite": "boîte",
+    "commentaire": "petite boîte égouttée"
+  },
+  {
+    "aliment": "Sucre",
+    "groupe": "produit sucré",
+    "poids": 5,
+    "unite": "morceau",
+    "commentaire": ""
+  },
+  {
+    "aliment": "Confiture",
+    "groupe": "produit sucré",
+    "poids": 15,
+    "unite": "cuillère",
+    "commentaire": "cuillère à café"
+  },
+  {
+    "aliment": "Miel",
+    "groupe": "produit sucré",
+    "poids": 20,
+    "unite": "cuillère",
+    "commentaire": "cuillère à soupe"
+  },
+  {
+    "aliment": "Chocolat noir",
+    "groupe": "produit sucré",
+    "poids": 10,
+    "unite": "carré",
+    "commentaire": ""
+  },
+  {
+    "aliment": "Biscuit",
+    "groupe": "produit sucré",
+    "poids": 15,
+    "unite": "pièce",
+    "commentaire": "type Petit Beurre"
+  },
+  {
+    "aliment": "Huile d'olive",
+    "groupe": "matière grasse",
+    "poids": 10,
+    "unite": "cuillère",
+    "commentaire": "cuillère à soupe"
+  },
+  {
+    "aliment": "Beurre",
+    "groupe": "matière grasse",
+    "poids": 10,
+    "unite": "portion",
+    "commentaire": "pour tartine"
+  },
+  {
+    "aliment": "Amandes",
+    "groupe": "matière grasse",
+    "poids": 30,
+    "unite": "poignée",
+    "commentaire": ""
+  },
+  {
+    "aliment": "Noix",
+    "groupe": "matière grasse",
+    "poids": 30,
+    "unite": "poignée",
+    "commentaire": ""
+  },
+  {
+    "aliment": "Café",
+    "groupe": "boisson",
+    "poids": 100,
+    "unite": "tasse",
+    "commentaire": "expresso"
+  },
+  {
+    "aliment": "Jus d'orange",
+    "groupe": "boisson",
+    "poids": 150,
+    "unite": "verre",
+    "commentaire": ""
+  },
+  {
+    "aliment": "Tartine",
+    "groupe": "autre",
+    "poids": 30,
+    "unite": "pièce",
+    "commentaire": "pain + garniture légère"
+  }
+]

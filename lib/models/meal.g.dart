@@ -25,13 +25,14 @@ class MealAdapter extends TypeAdapter<Meal> {
       quantity: fields[5] as double,
       type: fields[6] as String,
       date: fields[7] as String,
+      firestoreId: fields[8] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, Meal obj) {
     writer
-      ..writeByte(8)
+      ..writeByte(9)
       ..writeByte(0)
       ..write(obj.name)
       ..writeByte(1)
@@ -47,7 +48,9 @@ class MealAdapter extends TypeAdapter<Meal> {
       ..writeByte(6)
       ..write(obj.type)
       ..writeByte(7)
-      ..write(obj.date);
+      ..write(obj.date)
+      ..writeByte(8)
+      ..write(obj.firestoreId);
   }
 
   @override

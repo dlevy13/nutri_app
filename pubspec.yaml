@@ -15,9 +15,6 @@ dependencies:
   fl_chart: ^0.71.0
   lucide_icons_flutter: ^3.0.0
   logger: ^2.0.2
-  #sqflite: ^2.0.0
-  #sqflite_common_ffi: ^2.0.3
-  #sqflite_common_ffi_web: ^1.0.0
   path_provider: ^2.1.1
   path: ^1.8.0
   intl: ^0.20.2
@@ -29,13 +26,20 @@ dependencies:
   hive: ^2.2.3
   hive_flutter: ^1.1.0
   flutter_dotenv: ^5.1.0
+  icalendar_parser: ^2.0.1
+  web: ^0.4.0
+  flutter_riverpod: ^2.5.1
+  equatable: ^2.0.5
+  url_launcher: ^6.2.6
+  characters: ^1.3.0
   
 flutter:
   uses-material-design: true
   assets:
     - assets/food_data.json
-    - assets/env
-    - assets/env.production
+    - assets/env.json
+    - assets/poids_usuel.json
+    - .env
 
 dev_dependencies:
   flutter_test:
