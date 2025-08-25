@@ -7,6 +7,7 @@ import '../profile_form/profile_form_notifier.dart';
 import '../profile_form/profile_form_state.dart';
 import '../repositories/strava_repository.dart';
 import '../services/strava_service.dart';
+import '../widget/GarminLinkCaptureWeb.dart';
 import 'legal_notice_page.dart';
 
 class ProfileFormPage extends ConsumerStatefulWidget {
@@ -180,6 +181,47 @@ class _ProfileFormPageState extends ConsumerState<ProfileFormPage> {
                         return null;
                       },
                     ),
+                    const SizedBox(height: 8),
+                    // récupération automatisée du lien garmin
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.link),
+                        label: const Text("Récupérer automatiquement"),
+                        onPressed: () async {
+                          final link = await showModalBottomSheet<String>(
+                            context: context,
+                            isScrollControlled: true,
+                            useSafeArea: true,
+                            builder: (ctx) {
+                              return Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: GarminLinkCaptureWeb(
+                                  onLinkDetected: (l) {
+                                    Navigator.of(ctx).pop(l); // ✅ renvoie le lien au caller
+                                  },
+                                ),
+                              );
+                            },
+                          );
+
+                          if (!mounted) return;
+
+  if (link != null) {
+    final clean = link.trim();
+    _garminLinkController.text = clean;
+    notifier.garminLinkChanged(clean);
+
+    // ✅ Affiche le message APRÈS le retour d’UI
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Lien calendrier Garmin récupéré ✅")),
+      );
+    });
+  }
+                        },
+                      ),
+                    ),
                     const SizedBox(height: 20),
                     ElevatedButton(
                       onPressed: state.status == FormStatus.loading ? null : () {
@@ -194,35 +236,9 @@ class _ProfileFormPageState extends ConsumerState<ProfileFormPage> {
 
                     const SizedBox(height: 32),
                     const Divider(),
-                    const SizedBox(height: 16),
                     
-                    Text("🔒 Identifiants Strava", style: Theme.of(context).textTheme.titleLarge),
-                    const SizedBox(height: 8),
-
-                    TextFormField(
-                      controller: _stravaClientIdController,
-                      decoration: const InputDecoration(labelText: "Client ID"),
-                      onChanged: (value) => notifier.stravaClientIdChanged(value),
-                    ),
-                    TextFormField(
-                      controller: _stravaClientSecretController,
-                      decoration: const InputDecoration(labelText: "Client Secret"),
-                      obscureText: true,
-                      onChanged: (value) => notifier.stravaClientSecretChanged(value),
-                    ),
-                    const SizedBox(height: 12),
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.save),
-                      label: const Text("Enregistrer les identifiants Strava"),
-                      onPressed: () async {
-                        final success = await notifier.saveStravaCredentials();
-                        if (mounted && success) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("✅ Identifiants Strava enregistrés"), backgroundColor: Colors.green),
-                          );
-                        }
-                      },
-                    ),
+                    
+                    
                     _StravaConnectSection(),
                     Center(
                       child: TextButton(
@@ -249,14 +265,6 @@ class _ProfileFormPageState extends ConsumerState<ProfileFormPage> {
     );
   }
 }
-// À la fin de votre fichier profile_form_page.dart
-
-// Provider pour vérifier l'état de la connexion (très performant)
-final isStravaConnectedProvider = FutureProvider.autoDispose<bool>((ref) {
-  return ref.watch(stravaServiceProvider).isConnected();
-});
-
-// dans lib/pages/profile_form_page.dart
 
 class _StravaConnectSection extends ConsumerWidget {
   @override

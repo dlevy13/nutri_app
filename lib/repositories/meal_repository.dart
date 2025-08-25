@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/meal.dart';
 import '../services/date_service.dart';
+import '../services/fonctions.dart';
 
 class MealRepository {
   // Le repository n'a plus besoin de Hive, seulement de Firestore et Auth
@@ -79,40 +80,38 @@ Future<void> updateMeal(Meal meal) async {
         .where('type', isEqualTo: mealType)
         .get();
 
-  // --- FIN DU BLOC DE DÉBOGAGE ---
     return querySnapshot.docs.map((doc) => Meal.fromMap(doc.data(), id: doc.id)).toList();
     
   }
 
   /// Trouve les repas les plus fréquents pour un type donné depuis Firestore.
-  Future<List<Meal>> getMostFrequentMealsByType(String mealType) async {
+  Future<List<Meal>> getLastMealsByType(String mealType) async {
     final uid = _currentUser?.uid;
     if (uid == null) return [];
 
-    final querySnapshot = await _firestore
+    final snap = await _firestore
         .collection('users')
         .doc(uid)
         .collection('meals')
         .where('type', isEqualTo: mealType)
+        .orderBy('date', descending: true)
         .limit(50) // On limite pour la performance
         .get();
         
-    if (querySnapshot.docs.isEmpty) return [];
+    if (snap.docs.isEmpty) return [];
+    final seen = <String>{};
+    final result = <Meal>[];
 
-    final meals = querySnapshot.docs.map((doc) => Meal.fromMap(doc.data())).toList();
-    
-    final Map<String, int> frequencyMap = {};
-    final Map<String, Meal> mealMap = {};
-
-    for (var meal in meals) {
-      frequencyMap[meal.name] = (frequencyMap[meal.name] ?? 0) + 1;
-      mealMap.putIfAbsent(meal.name, () => meal);
-    }
-
-    final sortedMeals = frequencyMap.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-
-    return sortedMeals.take(5).map((entry) => mealMap[entry.key]!).toList();
+    for (final doc in snap.docs) {
+      final meal = Meal.fromMap(doc.data());
+      final key = meal.name.trim().toLowerCase();
+       if (key.isEmpty) continue;
+        if (seen.add(key)) {
+          result.add(meal);
+          if (result.length >= 15) break;
+        }
+      }
+      return result;
   }
 
   /// Ajoute un nouveau repas dans Firestore.
@@ -139,6 +138,73 @@ Future<void> updateMeal(Meal meal) async {
         .doc(meal.firestoreId)
         .delete();
   }
+
+// enregistré repas API dans custo_foods
+
+Future<String> upsertCustomFoodFromApi({
+  required String name,
+  required double kcalPer100,
+  required double proteinPer100,
+  required double carbsPer100,
+  required double fatPer100,
+  String? externalId,
+  String? imageUrl,
+  String source = 'api',
+}) async {
+  final uid = _currentUser?.uid;
+  if (uid == null) return '';
+
+  final col = _firestore.collection('users').doc(uid).collection('custom_foods');
+
+  final norm = normalize(name);
+
+  String rawId = (externalId != null && externalId.trim().isNotEmpty)
+      ? 'api:${externalId.trim()}'
+      : 'name:$norm';
+
+  final docId = rawId.replaceAll(RegExp(r'[\/?#\[\]]'), '_');
+  final docRef = col.doc(docId);
+  final snap = await docRef.get();
+
+  // ✅ Nouvelles clés normalisées (100 g par défaut)
+  final payload = <String, dynamic>{
+    'name': name.trim(),
+    'normalizedName': norm,
+    'calories': kcalPer100,  // <— remplace kcalPer100
+    'protein': proteinPer100,
+    'carbs': carbsPer100,
+    'fat': fatPer100,
+    'per': 100,              // optionnel : explicite l’unité (100 g)
+    'imageUrl': imageUrl,
+    'source': source,
+    'externalId': externalId,
+    'lastUsedAt': FieldValue.serverTimestamp(),
+    'usesCount': FieldValue.increment(1),
+    if (!snap.exists) 'createdAt': FieldValue.serverTimestamp(),
+
+    // 🧰 Rétro‑compat (à retirer une fois la migration finie)
+    'kcalPer100': kcalPer100,
+    'proteinPer100': proteinPer100,
+    'carbsPer100': carbsPer100,
+    'fatPer100': fatPer100,
+  };
+
+  await docRef.set(payload, SetOptions(merge: true));
+  return docId;
+}
+
+
+
+// Appelé quand tu utilises un custom food déjà présent
+Future<void> touchCustomFood(String docId) async {
+  final uid = _currentUser?.uid;
+  if (uid == null) return;
+  await _firestore
+      .collection('users').doc(uid).collection('custom_foods')
+      .doc(docId)
+      .set({'lastUsedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+}
+
 }
 
 // Le provider ne dépend plus de Hive

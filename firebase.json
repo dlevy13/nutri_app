@@ -1,91 +1,97 @@
 {
-    "flutter": {
-        "platforms": {
-            "android": {
-                "default": {
-                    "projectId": "nutriapp-4ea20",
-                    "appId": "1:84884488780:android:c8cef5fa552e4f7036aae9",
-                    "fileOutput": "android/app/google-services.json"
-                }
-            },
-            "ios": {
-                "default": {
-                    "projectId": "nutriapp-4ea20",
-                    "appId": "1:84884488780:ios:bfedf07e96c2a09c36aae9",
-                    "uploadDebugSymbols": false,
-                    "fileOutput": "ios/Runner/GoogleService-Info.plist"
-                }
-            },
-            "macos": {
-                "default": {
-                    "projectId": "nutriapp-4ea20",
-                    "appId": "1:84884488780:ios:d70f34f0782162b836aae9",
-                    "uploadDebugSymbols": false,
-                    "fileOutput": "macos/Runner/GoogleService-Info.plist"
-                }
-            },
-            "dart": {
-                "lib/firebase_options.dart": {
-                    "projectId": "nutriapp-4ea20",
-                    "configurations": {
-                        "android": "1:84884488780:android:c8cef5fa552e4f7036aae9",
-                        "ios": "1:84884488780:ios:bfedf07e96c2a09c36aae9",
-                        "macos": "1:84884488780:ios:d70f34f0782162b836aae9",
-                        "web": "1:84884488780:web:0f0c8ace45e9e29a36aae9",
-                        "windows": "1:84884488780:web:0f0c8ace45e9e29a36aae9"
-                    }
-                }
-            }
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "nutriapp-4ea20",
+          "appId": "1:84884488780:android:c8cef5fa552e4f7036aae9",
+          "fileOutput": "android/app/google-services.json"
         }
-    },
-    "hosting": {
-        "public": "build/web",
-        "ignore": [
-            "firebase.json",
-            "**/.*",
-            "**/node_modules/**"
-        ],
-        "rewrites": [
-            {
-                "source": "**",
-                "destination": "/index.html"
-            }
-        ],
+      },
+      "ios": {
+        "default": {
+          "projectId": "nutriapp-4ea20",
+          "appId": "1:84884488780:ios:bfedf07e96c2a09c36aae9",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "macos": {
+        "default": {
+          "projectId": "nutriapp-4ea20",
+          "appId": "1:84884488780:ios:d70f34f0782162b836aae9",
+          "uploadDebugSymbols": false,
+          "fileOutput": "macos/Runner/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "nutriapp-4ea20",
+          "configurations": {
+            "android": "1:84884488780:android:c8cef5fa552e4f7036aae9",
+            "ios": "1:84884488780:ios:bfedf07e96c2a09c36aae9",
+            "macos": "1:84884488780:ios:d70f34f0782162b836aae9",
+            "web": "1:84884488780:web:0f0c8ace45e9e29a36aae9",
+            "windows": "1:84884488780:web:0f0c8ace45e9e29a36aae9"
+          }
+        }
+      }
+    }
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ],
+    "headers": [
+      {
+        "source": "**/*.@(js|css)",
         "headers": [
-            {
-                "source": "**/*.@(js|css)",
-                "headers": [
-                    {
-                        "key": "Cache-Control",
-                        "value": "public, max-age=31536000, immutable"
-                    }
-                ]
-            },
-            {
-                "source": "index.html",
-                "headers": [
-                    {
-                        "key": "Cache-Control",
-                        "value": "no-cache"
-                    }
-                ]
-            }
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
         ]
-    },
-    "functions": [
-        {
-            "source": "functions",
-            "codebase": "default",
-            "ignore": [
-                "node_modules",
-                ".git",
-                "firebase-debug.log",
-                "firebase-debug.*.log",
-                "*.local"
-            ],
-            "predeploy": [
-                "npm --prefix \"$RESOURCE_DIR\" run build"
-            ]
-        }
+      },
+      {
+        "source": "index.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      }
     ]
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ],
+      "predeploy": [
+        "npm --prefix \"$RESOURCE_DIR\" run build"
+      ]
+    }
+  ],
+  "firestore": {
+    "database": "(default)",
+    "location": "europe-west1",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  }
 }

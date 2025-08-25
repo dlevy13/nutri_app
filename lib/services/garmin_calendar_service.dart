@@ -8,7 +8,7 @@ import '../log.dart'; // garde ton logger
 class GarminCalendarService {
   static const String _cacheKey = 'garmin_calendar_cache';
   static const String _lastFetchKey = 'garmin_last_fetch';
-  static const String _icalUrl = 'https://us-central1-nutriapp-4ea20.cloudfunctions.net/garminCalendar';
+  static const String _icalUrl = 'https://us-central1-nutriapp-4ea20.cloudfunctions.net/garminCalendarV2';
 
 
   /// ✅ Récupère l’URL Garmin sécurisée depuis Firestore

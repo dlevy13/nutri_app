@@ -36,6 +36,9 @@ class DashboardState extends Equatable {
   final bool isWeeklyAnalysis;
   final String weeklyAiAnalysis;      // Pour stocker le texte de l'analyse de la semaine
   final bool hasWeeklyAnalysis;
+  final bool hasDailyAnalysis;
+  final bool isDailyExpanded;
+  final bool isWeeklyExpanded;
 
   const DashboardState({
     this.status = ViewStatus.initial,
@@ -58,6 +61,9 @@ class DashboardState extends Equatable {
     this.theoreticalCalorieSplit = const {},
     this.weeklyAiAnalysis = '',
     this.hasWeeklyAnalysis = false,
+    this.hasDailyAnalysis = false,
+    this.isDailyExpanded = false,
+    this.isWeeklyExpanded = false,
   });
 
   // La méthode copyWith est essentielle pour mettre à jour l'état de manière immuable.
@@ -82,6 +88,9 @@ class DashboardState extends Equatable {
      Map<String, double>? theoreticalCalorieSplit,
       String? weeklyAiAnalysis,
     bool? hasWeeklyAnalysis,
+    bool? hasDailyAnalysis,
+    bool? isDailyExpanded,
+    bool? isWeeklyExpanded,
   }) {
     return DashboardState(
       status: status ?? this.status,
@@ -103,7 +112,10 @@ class DashboardState extends Equatable {
       isStravaConnected: isStravaConnected ?? this.isStravaConnected,
       weeklyAiAnalysis: weeklyAiAnalysis ?? this.weeklyAiAnalysis,
       hasWeeklyAnalysis: hasWeeklyAnalysis ?? this.hasWeeklyAnalysis,
+      hasDailyAnalysis: hasDailyAnalysis ?? this.hasDailyAnalysis,
       theoreticalCalorieSplit: theoreticalCalorieSplit ?? this.theoreticalCalorieSplit,
+      isDailyExpanded: isDailyExpanded ?? this.isDailyExpanded,
+      isWeeklyExpanded: isWeeklyExpanded ?? this.isWeeklyExpanded,
     );
   }
 
@@ -131,5 +143,6 @@ class DashboardState extends Equatable {
         theoreticalCalorieSplit,
         weeklyAiAnalysis,
         hasWeeklyAnalysis,
+        hasDailyAnalysis,
       ];
 }

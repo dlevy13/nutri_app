@@ -6,7 +6,7 @@ import '../services/api_config.dart';
 
 Future<List<Map<String, dynamic>>> searchFoodOnAPI(String query) async {
   final uri = Uri.parse(
-    'https://us-central1-nutriapp-4ea20.cloudfunctions.net/proxy'
+    'https://us-central1-nutriapp-4ea20.cloudfunctions.net/proxyV2'
     '?search_terms=$query'
     '&search_simple=1'
     '&action=process'

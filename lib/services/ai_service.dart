@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 
 class AIService {
   // ✅ L'URL de votre fonction Firebase
-  final String backendUrl = "https://us-central1-nutriapp-4ea20.cloudfunctions.net/analyzeMeals";
+  final String backendUrl = "https://us-central1-nutriapp-4ea20.cloudfunctions.net/analyzeMealsV2";
 
   /// Appelle votre backend Firebase pour obtenir l'analyse.
   Future<String> analyzeMealsViaBackend(

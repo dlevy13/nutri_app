@@ -1,0 +1,20 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ✅ USERS (chaque utilisateur ne peut accéder qu'à son propre document)
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      // ✅ Sous-collections protégées (meals, analyses, strava, etc.)
+      match /{subcollection}/{docId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // 🔒 Protection par défaut : tout autre accès est refusé
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

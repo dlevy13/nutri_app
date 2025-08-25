@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../meal_input/meal_input_page.dart';
 import '../pages/profile_form_page.dart';
 import '../pages/training_planner_page.dart';
@@ -10,6 +9,7 @@ import '../services/date_service.dart';
 import '../repositories/strava_repository.dart';
 import '../dashboard/dashboard_notifier.dart';
 import '../dashboard/dashboard_state.dart';
+import '../widget/ai_analysis_card.dart';
 
 
 
@@ -215,7 +215,7 @@ class _WeekSelector extends ConsumerWidget {
 }
 
 
-// dans lib/features/dashboard/dashboard_page.dart
+
 
 class _CalorieSummaryDetailed extends ConsumerWidget {
   const _CalorieSummaryDetailed({super.key});
@@ -239,7 +239,7 @@ class _CalorieSummaryDetailed extends ConsumerWidget {
           stravaCals > 0
               ? "Nécessaires : ${neededWithStrava.toStringAsFixed(0)} Kcal\n"
                   "🔥 ${stravaCals.toStringAsFixed(0)} Kcal d'activité"
-              : "Nécessaires : ${neededWithoutStrava.toStringAsFixed(0)} Kcal",
+              : "Nécessaires : ${neededWithStrava.toStringAsFixed(0)} Kcal",
           style: const TextStyle(fontSize: 16, color: Colors.grey),
         ),
         const SizedBox(height: 24),
@@ -495,71 +495,154 @@ class _MacroBreakdownBar extends ConsumerWidget {
   }
 }
 
-// dans lib/features/dashboard/dashboard_page.dart
+
 
 class _AiAnalysisCard extends ConsumerWidget {
+  const _AiAnalysisCard({super.key});
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // On écoute toutes les données nécessaires
     final status = ref.watch(dashboardProvider.select((s) => s.analysisStatus));
     final isWeekly = ref.watch(dashboardProvider.select((s) => s.isWeeklyAnalysis));
-    final hasWeeklyAnalysis = ref.watch(dashboardProvider.select((s) => s.hasWeeklyAnalysis));
-    // On choisit quel texte d'analyse afficher
-    final analysisText = ref.watch(dashboardProvider.select((s) => 
-        s.isWeeklyAnalysis ? s.weeklyAiAnalysis : s.aiAnalysis
+
+    // ✅ Présence d’analyses (jour/semaine)
+    final hasDaily = ref.watch(dashboardProvider.select(
+      (s) => s.aiAnalysis.trim().isNotEmpty,
     ));
+    final hasWeekly = ref.watch(dashboardProvider.select(
+      (s) => s.weeklyAiAnalysis.trim().isNotEmpty,
+    ));
+
+    final analysisText = ref.watch(dashboardProvider.select(
+      (s) => s.isWeeklyAnalysis ? s.weeklyAiAnalysis : s.aiAnalysis,
+    ));
+
+    final expanded = ref.watch(dashboardProvider.select(
+      (s) => s.isWeeklyAnalysis ? s.isWeeklyExpanded : s.isDailyExpanded,
+    ));
+
     final notifier = ref.read(dashboardProvider.notifier);
 
-    return Card(
+    // ───────────────── Header (contrôles) ─────────────────
+    final controls = Card(
       elevation: 2,
       child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
           children: [
-            Text("🤖 Analyse IA", style: Theme.of(context).textTheme.titleLarge),
-            Row(
-              children: [
-                const Text("Jour"),
-                Switch(
-                  value: isWeekly,
-                  onChanged: (value) => notifier.setAnalysisType(value),
-                ),
-                const Text("Semaine"),
-                
-                // ✅ Indicateur si l'analyse de la semaine est déjà faite
-                if (isWeekly && hasWeeklyAnalysis) ...[
-                  const SizedBox(width: 8),
-                  const Icon(Icons.check_circle, color: Colors.green, size: 20),
-                  const Tooltip(message: "Analyse de la semaine déjà générée"),
-                ],
-
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.refresh),
-                  onPressed: () => notifier.runMealAnalysis(force: true),
-                )
-              ],
+            Text(
+              "🤖 Analyse IA",
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
-            const Divider(),
-            
-            switch (status) {
-              ViewStatus.loading => const Center(child: CircularProgressIndicator()),
-              ViewStatus.failure => const Text("Erreur lors de l'analyse."),
-              _ when analysisText.isNotEmpty => Text(analysisText),
-              _ => Center(
-                child: ElevatedButton(
-                  onPressed: () => notifier.runMealAnalysis(),
-                  child: Text(isWeekly ? "Analyser la semaine" : "Analyser le jour"),
-                ),
+            const SizedBox(width: 12),
+
+            // Jour + coche si analyse jour dispo
+            const Text("Jour"),
+            AnimatedOpacity(
+              opacity: hasDaily ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 400),
+              child: const Padding(
+                padding: EdgeInsets.only(left: 6),
+                child: Icon(Icons.check_circle, color: Colors.green, size: 18),
               ),
-            },
+            ),
+
+            // Switch
+            Switch(
+              value: isWeekly,
+              onChanged: (v) => notifier.setAnalysisType(v),
+            ),
+
+            // Semaine + coche si analyse semaine dispo
+            const Text("Semaine"),
+            AnimatedOpacity(
+              opacity: hasWeekly ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 400),
+              child: const Padding(
+                padding: EdgeInsets.only(left: 6),
+                child: Icon(Icons.check_circle, color: Colors.green, size: 18),
+              ),
+            ),
+
+            const Spacer(),
+
+            // ❌ on supprime le refresh ici (le bouton sera en bas de la carte)
+            // IconButton(
+            //   icon: const Icon(Icons.refresh),
+            //   tooltip: "Recalculer l’analyse",
+            //   onPressed: () => notifier.runMealAnalysis(force: true),
+            // ),
           ],
         ),
       ),
     );
+
+    // ───────────────── Corps (carte + bouton) ─────────────────
+    final noAnalysisYet = analysisText.trim().isEmpty;
+    final showLaunchButton = (noAnalysisYet || status == ViewStatus.failure) && status != ViewStatus.loading;
+
+    Widget body;
+
+    if (showLaunchButton) {
+      // 🔹 Pas encore d’analyse → bouton centré
+      body = Center(
+        child: ElevatedButton.icon(
+          onPressed: () => notifier.runMealAnalysis(force: true),
+          icon: const Icon(Icons.play_arrow),
+          label: const Text("Lancer l’analyse"),
+        ),
+      );
+    } else {
+      // 🔹 Analyse disponible → carte + bouton “Relancer” en bas à droite du cadre
+      final card = AiAnalysisCard(
+        title: "🤖 Analyse IA — ${isWeekly ? 'Semaine' : 'Jour'}",
+        content: analysisText,
+        expanded: expanded,
+        onToggle: () => isWeekly
+            ? notifier.toggleWeeklyExpanded()
+            : notifier.toggleDailyExpanded(),
+        isLoading: status == ViewStatus.loading,
+        error: status == ViewStatus.failure
+            ? (ref.read(dashboardProvider).errorMessage?.isNotEmpty == true
+                ? ref.read(dashboardProvider).errorMessage
+                : "Erreur lors de l’analyse")
+            : null,
+        collapsedLines: 4,
+      );
+
+      body = Stack(
+        children: [
+          // La carte d’analyse
+          card,
+
+          // Bouton en bas à droite du cadre (caché si en cours de chargement)
+          if (status != ViewStatus.loading)
+            Positioned(
+              right: 16,
+              bottom: 16,
+              child: ElevatedButton.icon(
+                onPressed: () => notifier.runMealAnalysis(force: true),
+                icon: const Icon(Icons.refresh),
+                label: const Text("Relancer l’analyse"),
+              ),
+            ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        controls,
+        const SizedBox(height: 8),
+        body,
+      ],
+    );
   }
 }
+
+
+
 
 class _MealCalorieBreakdown extends ConsumerWidget {
   
@@ -579,6 +662,8 @@ class _MealCalorieBreakdown extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(dashboardProvider);
     final notifier = ref.read(dashboardProvider.notifier);
+    /// utilitaire locaale
+    /// 
 
     // On récupère toutes les données nécessaires depuis l'état
     final totalNeededKcal = state.macroNeeds['Calories'] ?? 0;
@@ -589,49 +674,49 @@ class _MealCalorieBreakdown extends ConsumerWidget {
     
     final maxWidth = MediaQuery.of(context).size.width * 0.9;
     final repasKeys = ['Petit-déjeuner', 'Déjeuner', 'Dîner', 'Collation', 'Activité'];
-
+    void _openMealInput(String repas) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MealInputPage(
+            selectedDate: DateService.formatStandard(state.selectedDate),
+            mealType: repas,
+          ),
+        ),
+      ).then((_) => notifier.refreshDataAfterMealUpdate());
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+
         const Text(
           "Répartition des calories : Réel vs Théorique",
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
-        ...repasKeys.map((repas) {
-          
 
+        ...repasKeys.map((repas) {
           // CAS SPÉCIAL : ACTIVITÉ
           if (repas == "Activité") {
-            // On n'affiche la section que si des calories ont été saisies pour ce type.
             if (stravaCals <= 0) return const SizedBox.shrink();
-            final consommeKcal = consumedPerMeal[repas] ?? 0;
-            final widthConsomme = totalConsumedKcal > 0 ? (maxWidth * (consommeKcal / totalConsumedKcal)) : 0.0;
+
+            final consommeKcal = (consumedPerMeal[repas] ?? 0).toDouble();
+            final widthConsomme = totalConsumedKcal > 0
+                ? (maxWidth * (consommeKcal / totalConsumedKcal))
+                : 0.0;
 
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 8.0),
               child: GestureDetector(
-                 onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => MealInputPage(
-                        selectedDate: DateService.formatStandard(state.selectedDate),
-                        mealType: repas,
-                      ),
-                    ),
-                  ).then((_) => notifier.refreshDataAfterMealUpdate());
-                },
+                onTap: () => _openMealInput(repas),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ✅ Le texte affiche uniquement les calories saisies
                     Text(
                       "Activité (${consommeKcal.toStringAsFixed(0)} kcal)",
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 4),
-                    // On n'affiche que la barre de consommation
                     AnimatedContainer(
                       duration: const Duration(milliseconds: 400),
                       height: 20,
@@ -648,27 +733,18 @@ class _MealCalorieBreakdown extends ConsumerWidget {
           }
 
           // AUTRES REPAS
-          final ratio = ratios[repas] ?? 0;
+          final ratio = (ratios[repas] ?? 0).toDouble();
           final theoriqueKcal = totalNeededKcal * ratio;
           final theoriqueWidth = maxWidth * ratio;
-          final consommeKcal = consumedPerMeal[repas] ?? 0;
-          final ratioConsomme = totalConsumedKcal > 0 ? consommeKcal / totalConsumedKcal : 0.0;
+          final consommeKcal = (consumedPerMeal[repas] ?? 0).toDouble();
+          final ratioConsomme =
+              totalConsumedKcal > 0 ? consommeKcal / totalConsumedKcal : 0.0;
           final widthConsomme = (maxWidth * ratioConsomme).clamp(0.0, maxWidth);
-          
+
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 8.0),
             child: GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => MealInputPage(
-                      selectedDate: DateService.formatStandard(state.selectedDate),
-                      mealType: repas,
-                    ),
-                  ),
-                ).then((_) => notifier.refreshDataAfterMealUpdate());
-              },
+              onTap: () => _openMealInput(repas),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -682,13 +758,17 @@ class _MealCalorieBreakdown extends ConsumerWidget {
                     height: 24,
                     width: theoriqueWidth,
                     decoration: BoxDecoration(
+                      // Si ton SDK ne supporte pas .withValues, remplace par .withOpacity(0.2)
                       color: _getColorForRepas(repas).withValues(alpha: 150),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     alignment: Alignment.center,
                     child: Text(
                       "${(ratio * 100).toStringAsFixed(0)}%",
-                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black54),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black54,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 3),
@@ -706,7 +786,7 @@ class _MealCalorieBreakdown extends ConsumerWidget {
               ),
             ),
           );
-        }).toList(),
+        }),
         const SizedBox(height: 10),
         // La légende
         Row(
@@ -725,7 +805,7 @@ class _MealCalorieBreakdown extends ConsumerWidget {
     );
   }
 }
-// dans lib/features/dashboard/dashboard_page.dart
+
 
 class _StravaActivitiesList extends ConsumerWidget {
   @override

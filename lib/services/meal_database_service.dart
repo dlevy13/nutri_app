@@ -221,25 +221,44 @@ class MealDatabaseService {
     await _mealBox.deleteFromDisk();
   }
 
-  Future<List<Meal>> getMostFrequentMealsByType(String mealType, {int limit = 10}) async {
-    final meals = _mealBox.values.where((m) => m.type == mealType);
+  Future<List<Meal>> getMostFrequentMealsByType(String mealType, {int limit = 15}) async {
+  // 1) filtre local par type
+  final items = _mealBox.values.where((m) => m.type == mealType).toList();
 
-    final countMap = <String, int>{};
-    final mealMap = <String, Meal>{};
+  // 2) tri récent uniquement via 'date' (yyyy-MM-dd)
+  items.sort((a, b) {
+    final ad = (a.date ?? '').toString();
+    final bd = (b.date ?? '').toString();
+    return bd.compareTo(ad); // lexicographique OK pour yyyy-MM-dd
+  });
 
-    for (final meal in meals) {
-      countMap[meal.name] = (countMap[meal.name] ?? 0) + 1;
-      mealMap[meal.name] = meal;
+  // 3) dédoublonnage par nom normalisé
+  final seen = <String>{};
+  final out = <Meal>[];
+  for (final m in items) {
+    final name = (m.name).trim();
+    if (name.isEmpty) continue;
+    final key = _normalizeName(name);
+    if (seen.add(key)) {
+      out.add(m);
+      if (out.length >= limit) break;
     }
-
-    final sortedNames = countMap.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-
-    return sortedNames
-        .take(limit)
-        .map((entry) => mealMap[entry.key]!)
-        .toList();
   }
+  return out;
+}
+
+String _normalizeName(String s) {
+  var t = s.trim().toLowerCase();
+  const withAccents = 'àâäáãåçéèêëíìîïñóòôöõúùûüŷýÿœæ';
+  const noAccents   = 'aaaaaaceeeeiiiinooooouuuuyyyoeae';
+  for (var i = 0; i < withAccents.length; i++) {
+    t = t.replaceAll(withAccents[i], noAccents[i]);
+  }
+  t = t.replaceAll(RegExp(r'[^\w\s]'), ' ').replaceAll(RegExp(r'\s+'), ' ');
+  return t;
+}
+
+
   Future<List<Meal>> fetchMealsFromFirestore() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {

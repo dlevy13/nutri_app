@@ -9,7 +9,7 @@ class MealInputState extends Equatable {
   final DateTime selectedDate;
   
   final List<Meal> addedFoodsForDay; // Aliments déjà ajoutés
-  final List<Meal> frequentSuggestions; // Suggestions fréquentes
+  final List<Meal> recentSuggestions; // Suggestions fréquentes
   final List<dynamic> searchSuggestions; // Suggestions de la recherche
   
   const MealInputState({
@@ -17,7 +17,7 @@ class MealInputState extends Equatable {
     required this.selectedMealType,
     required this.selectedDate,
     this.addedFoodsForDay = const [],
-    this.frequentSuggestions = const [],
+    this.recentSuggestions = const [],
     this.searchSuggestions = const [],
   });
   
@@ -25,7 +25,7 @@ class MealInputState extends Equatable {
     SearchStatus? status,
     String? selectedMealType,
     List<Meal>? addedFoodsForDay,
-    List<Meal>? frequentSuggestions,
+    List<Meal>? recentSuggestions,
     List<dynamic>? searchSuggestions,
   }) {
     return MealInputState(
@@ -33,11 +33,11 @@ class MealInputState extends Equatable {
       selectedMealType: selectedMealType ?? this.selectedMealType,
       selectedDate: selectedDate, // Ne change pas
       addedFoodsForDay: addedFoodsForDay ?? this.addedFoodsForDay,
-      frequentSuggestions: frequentSuggestions ?? this.frequentSuggestions,
+      recentSuggestions: recentSuggestions ?? this.recentSuggestions,
       searchSuggestions: searchSuggestions ?? this.searchSuggestions,
     );
   }
   
   @override
-  List<Object?> get props => [status, selectedMealType, addedFoodsForDay, frequentSuggestions, searchSuggestions];
+  List<Object?> get props => [status, selectedMealType, addedFoodsForDay, recentSuggestions, searchSuggestions];
 }

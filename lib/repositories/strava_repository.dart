@@ -104,3 +104,7 @@ final stravaRepositoryProvider = Provider((ref) {
     FirebaseAuth.instance,
   );
 });
+final isStravaConnectedProvider = FutureProvider.autoDispose<bool>((ref) {
+  // On utilise le stravaServiceProvider déjà défini dans ce fichier
+  return ref.watch(stravaServiceProvider).isConnected();
+});

@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/app_user.dart';
+import '../models/meal.dart'; 
  import '../log.dart';
  import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -211,7 +212,7 @@ Future<String> analyzeMealsViaBackend(
 }) async {
   // ⚠️ remplace par l’URL réelle : région + ID projet
   final uri = Uri.parse(
-    "https://us-central1-nutriapp-4ea20.cloudfunctions.net/analyzeMeals",
+    "https://us-central1-nutriapp-4ea20.cloudfunctions.net/analyzeMealsV2",
   );
 
   final resp = await http
@@ -243,7 +244,6 @@ Future<String> analyzeMealsLocal(Map<String, dynamic> mealsData) async {
   // Actuellement c’est sûrement dans _fallbackLocalAnalysis
   return _fallbackLocalAnalysis(mealsData);
 }
-// lib/utils/fonctions.dart
 
 
 extension StringCap on String {
@@ -253,5 +253,68 @@ extension StringCap on String {
     return (chars.length <= max) ? t : chars.take(max).toString() + '…';
   }
 }
+/// Retourne les kcal normalisés pour 100 g à partir d’un Meal stocké tel quel.
 
 
+/// Structure pour représenter les macros normalisées /100 g
+class Macros100 {
+  final double kcal, pro, carb, fat;
+  const Macros100(this.kcal, this.pro, this.carb, this.fat);
+}
+
+double _d(dynamic v) => (v is num) ? v.toDouble() : 0.0;
+
+/// Remonte toujours à des macros /100 g
+Macros100 per100From(dynamic foodData) {
+  // Cas A : c’est un Meal
+  if (foodData is Meal) {
+    final qty = (foodData.quantity ?? 100).toDouble();
+    final kcal = _d(foodData.calories);
+    final pro  = _d(foodData.protein);
+    final carb = _d(foodData.carbs);
+    final fat  = _d(foodData.fat);
+
+    if (qty > 0 && qty != 100) {
+      final f = 100.0 / qty;
+      return Macros100(kcal * f, pro * f, carb * f, fat * f);
+    }
+    return Macros100(kcal, pro, carb, fat); // déjà en /100 g
+  }
+
+  // Cas B : c’est une Map (Firestore/Hive/API)
+  final m = foodData as Map<String, dynamic>;
+
+  // Détection si déjà normalisé (/100 g)
+  final bool hasPerFlag100 = (m['per'] == 100);
+  final bool hasPer100Keys = m.containsKey('kcalPer100') ||
+                             m.containsKey('proteinPer100') ||
+                             m.containsKey('carbsPer100') ||
+                             m.containsKey('fatPer100');
+
+  if (hasPerFlag100 || hasPer100Keys) {
+    final kcal = hasPer100Keys ? _d(m['kcalPer100']) : _d(m['calories']);
+    final pro  = hasPer100Keys ? _d(m['proteinPer100']) : _d(m['protein']);
+    final carb = hasPer100Keys ? _d(m['carbsPer100'])   : _d(m['carbs']);
+    final fat  = hasPer100Keys ? _d(m['fatPer100'])     : _d(m['fat']);
+    return Macros100(kcal, pro, carb, fat);
+  }
+
+  // Sinon : valeurs pour une portion → remonter en /100 g
+  final qty = _d(m['quantity']);
+  final kcal = _d(m['calories']);
+  final pro  = _d(m['protein']);
+  final carb = _d(m['carbs']);
+  final fat  = _d(m['fat']);
+
+  if (qty > 0 && qty != 100) {
+    final f = 100.0 / qty;
+    return Macros100(kcal * f, pro * f, carb * f, fat * f);
+  }
+  return Macros100(kcal, pro, carb, fat);
+}
+
+/// Calcule les macros pour une portion choisie à partir du /100 g
+Macros100 portionFromPer100(Macros100 p100, double grams) {
+  final f = grams / 100.0;
+  return Macros100(p100.kcal * f, p100.pro * f, p100.carb * f, p100.fat * f);
+}

@@ -9,24 +9,26 @@ import '../log.dart';
 
 class StravaService {
   final String proxyOAuth =
-      "https://us-central1-nutriapp-4ea20.cloudfunctions.net/stravaTokenExchange";
+      "https://us-central1-nutriapp-4ea20.cloudfunctions.net/stravaTokenExchangeV2";
   final String proxyRefresh =
-      "https://us-central1-nutriapp-4ea20.cloudfunctions.net/stravaRefreshToken";
+      "https://us-central1-nutriapp-4ea20.cloudfunctions.net/stravaRefreshTokenV2";
 
   /// ✅ Récupère l’URL OAuth pour Strava
-  String getAuthUrl() {
-    // ✅ Détecte si on est en mode débogage web
+  String getAuthUrl({required String uid}) {
   final isWebDebug = kIsWeb && !kReleaseMode;
-  
-  // On utilise l'URL de localhost pour le débogage, et l'URL de production sinon
-  final redirectUri = isWebDebug 
-      ? "http://localhost:5280/" // ❗️Adaptez le port si nécessaire
-      : "https://nutriapp-4ea20.web.app/";
+
+  final callback = isWebDebug
+      ? "http://localhost:5280/strava-callback"
+      : "https://nutriapp-4ea20.web.app/strava-callback";
+
+  final redirectUri = Uri.encodeComponent(callback);
+  final state = Uri.encodeComponent(uid); // anti-CSRF + pour t’aider côté callback
 
   return "https://www.strava.com/oauth/authorize"
-      "?client_id=170321" // Remplacez par votre vrai Client ID si différent
+      "?client_id=170321"
       "&response_type=code"
       "&redirect_uri=$redirectUri"
+      "&state=$state"
       "&approval_prompt=force"
       "&scope=read,activity:read_all";
 }
@@ -99,36 +101,44 @@ class StravaService {
     await _storeTokens(accessToken, refreshToken);
   }
 
-  /// ✅ Rafraîchit le token via proxy Firebase (avec CORS actif)
-  Future<void> refreshAccessToken() async {
-    logger.d("🚀 refreshAccessToken() appelée");
+  /// ✅ Rafraîchit le token via proxy Firebase (POST JSON)
+Future<void> refreshAccessToken() async {
+  logger.d("🚀 refreshAccessToken() appelée");
 
-    final refreshToken = await _getRefreshToken();
-    if (refreshToken == null || refreshToken.isEmpty) {
-      logger.d("❌ Aucun refresh_token trouvé → pas de refresh");
-      return;
-    }
-
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) throw Exception("Utilisateur non connecté");
-
-    final uri = Uri.parse(proxyRefresh).replace(queryParameters: {
-      "refresh_token": refreshToken,
-      "uid": uid,
-    });
-
-  final res = await http.get(uri);
-
-    logger.d("📡 Réponse proxy refresh : ${res.statusCode} → ${res.body}");
-
-    if (res.statusCode == 200) {
-      final data = jsonDecode(res.body);
-      await _storeTokens(data["access_token"], data["refresh_token"]);
-      logger.d("✅ Nouveau token Strava rafraîchi avec succès");
-    } else {
-      logger.d("❌ Échec refresh token Strava");
-    }
+  final rt = await _getRefreshToken();
+  if (rt == null || rt.isEmpty) {
+    logger.d("❌ Aucun refresh_token trouvé → pas de refresh");
+    return;
   }
+
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null) throw Exception("Utilisateur non connecté");
+
+  final res = await http.post(
+    Uri.parse(proxyRefresh),
+    headers: {'Content-Type': 'application/json'},
+    body: jsonEncode({'uid': uid, 'refresh_token': rt}),
+  );
+
+  logger.d("📡 Réponse proxy refresh : ${res.statusCode} → ${res.body}");
+
+  if (res.statusCode == 200) {
+    final data = jsonDecode(res.body);
+    final access = (data["access_token"] as String?) ?? "";
+    final refresh = (data["refresh_token"] as String?) ?? "";
+
+    if (access.isEmpty || refresh.isEmpty) {
+      throw Exception("Réponse refresh incomplète");
+    }
+
+    // ⚠️ Très important : on remplace le refresh token local par le NOUVEAU
+    await _storeTokens(access, refresh);
+    logger.d("✅ Nouveau token Strava rafraîchi avec succès");
+  } else {
+    throw Exception("❌ Échec refresh token Strava : ${res.statusCode} ${res.body}");
+  }
+}
+
 
   /// ✅ Récupère activités Strava (rafraîchit avant)
   Future<List<dynamic>> getActivities() async {
@@ -151,26 +161,26 @@ class StravaService {
     }
   }
 
-  /// ✅ Récupère les calories brûlées Strava pour un jour donné
+  /// ✅ Récupère les calories Strava pour une date donnée en utilisant le token rafraîchi
 Future<double> getCaloriesForDate(DateTime date) async {
-  // ✅ 1. Vérifie d'abord s'il y a un token
-  final token = await getAccessToken();
-  if (token == null || token.isEmpty) {
+  // 1) Vérifie qu'on a au moins un token présent
+  final existing = await getAccessToken();
+  if (existing == null || existing.isEmpty) {
     logger.w("⛔ Aucun token trouvé → annulation de l'appel Strava");
     throw Exception("Utilisateur non connecté à Strava");
   }
 
-  // ✅ 2. Ne rafraîchit qu’après validation du token
+  // 2) Rafraîchir avant l'appel (et donc mettre à jour localStorage/SharedPrefs)
   await refreshAccessToken();
 
-  // ✅ 3. Récupère à nouveau le token rafraîchi
-  final refreshedToken = await getAccessToken();
-  if (refreshedToken == null || refreshedToken.isEmpty) {
+  // 3) Récupérer le NOUVEAU token (celui qui vient d’être stocké)
+  final token = await getAccessToken();
+  if (token == null || token.isEmpty) {
     logger.w("⛔ Échec du refresh → token manquant");
     throw Exception("Token Strava invalide après refresh");
   }
 
-  // ✅ Récupération des activités de la semaine
+  // 4) Calcul du début de semaine (local)
   final now = DateTime.now();
   final monday = now.subtract(Duration(days: now.weekday - 1));
   final startOfWeek = DateTime(monday.year, monday.month, monday.day);
@@ -181,44 +191,52 @@ Future<double> getCaloriesForDate(DateTime date) async {
   );
 
   final res = await http.get(url, headers: {"Authorization": "Bearer $token"});
-  if (res.statusCode != 200) throw Exception("Erreur API Strava : ${res.body}");
+  if (res.statusCode != 200) {
+    logger.d("❌ Erreur API Strava : ${res.statusCode} → ${res.body}");
+    throw Exception("Erreur API Strava");
+  }
 
-  final List<dynamic> activities = jsonDecode(res.body);
+  final List<dynamic> activities = jsonDecode(res.body) as List<dynamic>;
 
-  // ✅ Filtrer les activités du jour sélectionné
-  final String selectedDay = date.toIso8601String().split("T")[0];
+  // 5) Filtrer sur la date demandée
+  final String targetDay = date.toIso8601String().split("T")[0];
   double totalCalories = 0;
 
-  for (var act in activities) {
-    final actDate = DateTime.parse(act["start_date_local"]).toIso8601String().split("T")[0];
-    if (actDate == selectedDay) {
-      // ✅ Strava renvoie parfois "calories", parfois non
-      if (act.containsKey("calories") && act["calories"] != null) {
-        totalCalories += act["calories"];
-      }
+  for (final act in activities) {
+    final map = act as Map<String, dynamic>;
+    final startLocal = map["start_date_local"] as String?;
+    if (startLocal == null) continue;
+
+    final actDate = DateTime.parse(startLocal).toIso8601String().split("T")[0];
+    if (actDate == targetDay) {
+      final cals = map["calories"];
+      if (cals is num) totalCalories += cals.toDouble();
     }
   }
 
-  logger.d("🔥 Total calories Strava pour $selectedDay : $totalCalories");
+  logger.d("🔥 Total calories Strava pour $targetDay : $totalCalories");
   return totalCalories;
 }
+
 Future<bool> isConnected() async {
   final token = await getAccessToken();
   return token != null && token.isNotEmpty;
 }
  /// Lance l'URL d'autorisation Strava dans le navigateur.
   Future<void> launchAuthUrl() async {
-    final authUrl = getAuthUrl();
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null) throw Exception("Utilisateur non connecté");
 
-    if (kIsWeb) {
-      // Sur PWA, on redirige l'onglet courant → fiable et évite les popups
-      web.window.location.href = authUrl;
-    } else {
-      final uri = Uri.parse(authUrl);
-      if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-        throw 'Impossible de lancer URL : $authUrl';
-      }
+  final authUrl = getAuthUrl(uid: uid);
+
+  if (kIsWeb) {
+    web.window.location.href = authUrl; // PWA/web
+  } else {
+    final uri = Uri.parse(authUrl);
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      throw 'Impossible de lancer URL : $authUrl';
     }
+  }
 }
 Future<Map<String, dynamic>?> getActivityDetails(int id) async {
   final token = await getAccessToken();

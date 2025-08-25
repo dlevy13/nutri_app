@@ -1,6 +1,6 @@
 {
-  "name": "NutriSport",
-  "short_name": "NutriSport",
+  "name": "NutriPerform",
+  "short_name": "NutriPerform",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

@@ -6,10 +6,11 @@ import '../profile_form/profile_form_state.dart';
 import '../repositories/strava_repository.dart'; 
 
 class ProfileFormNotifier extends StateNotifier<ProfileFormState> {
+  final Ref _ref;
   final UserRepository _userRepository;
   final StravaService _stravaService;
 
-  ProfileFormNotifier(this._userRepository, this._stravaService) 
+  ProfileFormNotifier(this._ref, this._userRepository, this._stravaService) 
       : super(const ProfileFormState()) {
     loadInitialData();
   }
@@ -123,6 +124,7 @@ Future<void> loadInitialData() async {
 
   Future<void> disconnectStrava() async {
     await _stravaService.disconnect();
+    _ref.invalidate(isStravaConnectedProvider);
     // On met à jour l'état pour que l'UI change immédiatement
     state = state.copyWith(isStravaConnected: false);
   }
@@ -131,6 +133,7 @@ Future<void> loadInitialData() async {
 // Le Provider pour ce notifier
 final profileFormProvider = StateNotifierProvider.autoDispose<ProfileFormNotifier, ProfileFormState>((ref) {
   return ProfileFormNotifier(
+    ref,
     ref.watch(userRepositoryProvider),
     ref.watch(stravaServiceProvider),
   );
