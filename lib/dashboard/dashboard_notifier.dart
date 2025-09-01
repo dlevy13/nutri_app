@@ -8,6 +8,8 @@ import '../repositories/strava_repository.dart';
 import '../services/ai_providers.dart';
 import '../services/ai_manager.dart';
 import 'dashboard_state.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 
 class DashboardNotifier extends StateNotifier<DashboardState> {
@@ -29,6 +31,46 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
   // ===========================================================================
   // == GESTION DES DONNÉES
   // ===========================================================================
+// 🔒 Écrit/merge un document par jour : users/{uid}/daily_calories/{YYYY-MM-DD}
+    Future<void> _upsertDailyCalories({
+      required DateTime day,
+      required double neededKcal,    // = state.macroNeeds['Calories']
+      required double consumedKcal,  // = state.consumedMacros['Calories']
+      required double activityKcal,  // = state.stravaCaloriesForDay
+      int? mealsCount,
+      double? consumedProt_g,       
+      double? consumedCarb_g,      
+      double? consumedFat_g, 
+      double? consumedFibres_g,
+      double? consumedSatFat_g,
+      double? consumedPolyFat_g,
+      double? consumedMonoFat_g,
+    }) async {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
+
+      final docId = DateService.formatStandard(day); // "yyyy-MM-dd"
+      final ref = FirebaseFirestore.instance
+          .collection('users').doc(uid)
+          .collection('daily_calories')
+          .doc(docId);
+
+      await ref.set({
+        'date': docId,
+        'neededKcal': neededKcal,
+        'consumedKcal': consumedKcal,
+        'activityKcal': activityKcal,
+        if (mealsCount != null) 'mealsCount': mealsCount,
+        if (consumedProt_g != null) 'consumedProt_g': consumedProt_g, 
+        if (consumedCarb_g != null) 'consumedCarb_g': consumedCarb_g, 
+        if (consumedFat_g  != null) 'consumedFat_g' : consumedFat_g,
+        if (consumedFibres_g != null) 'consumedFibres_g': consumedFibres_g,
+        if (consumedSatFat_g != null) 'consumedSatFat_g': consumedSatFat_g,
+        if (consumedPolyFat_g != null) 'consumedPolyFat_g': consumedPolyFat_g,
+        if (consumedMonoFat_g != null) 'consumedMonoFat_g': consumedMonoFat_g,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
 
   /// Charge ou recharge toutes les données de la page.
   Future<void> loadInitialData({DateTime? newSelectedDate}) async {
@@ -48,9 +90,9 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
       }
 
       // ✅ Clés cache jour / semaine
-      final dayKey = DateService.formatStandard(dateForLoading);
+      final dayKey = DateService.formatStandard(dateForLoading); 
       final weekKey = "week_${DateService.formatStandard(currentWeekStart)}";
-
+    
       final results = await Future.wait([
         _userRepository.getProfile(),                                     // [0]
         _mealRepository.getMealsForWeek(currentWeekStart),                // [1]
@@ -80,6 +122,13 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
       final neededMacros = _calculateMacroNeeds(
         userProfile, stravaData.totalCalories, typeToday, typeTomorrow);
 
+   
+      final mealsCount = _countDistinctMealsByType(
+        mealsForDay,
+        includeSnack: false,   // passe à false si tu veux exiger B/D/D uniquement
+        minKcalPerType: 50.0, // ajuste le seuil si besoin
+      );
+
       state = state.copyWith(
         status: ViewStatus.success,
         prenom: userProfile.firstName,
@@ -96,6 +145,35 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
         weeklyAiAnalysis: cachedWeeklyAnalysis ?? '',
         hasWeeklyAnalysis: (cachedWeeklyAnalysis ?? '').isNotEmpty,
         aiAnalysis: cachedDailyAnalysis ?? '',
+      );
+      final consumedMap = Map<String, double>.from(
+        (state.consumedMacros) // {"Calories": double, ...}
+      );
+      final double consumedTodayKcal = (consumedMap['Calories'] ?? 0).toDouble();
+      final double neededWithStrava  = (state.macroNeeds['Calories'] ?? 0).toDouble();
+      final double stravaCals        = (state.stravaCaloriesForDay).toDouble();
+      final double protG = (consumedMap['Protéines'] ?? 0).toDouble();
+      final double carbG = (consumedMap['Glucides']  ?? 0).toDouble();
+      final double fatG  = (consumedMap['Lipides']   ?? 0).toDouble();
+      final double fibresG = consumedMap['Fibres'] ?? 0;
+      final double satFatG = consumedMap['Saturés'] ?? 0;
+      final double polyFatG = consumedMap['Polyinsaturés'] ?? 0;
+      final double monoFatG = consumedMap['Monoinsaturés'] ?? 0;
+
+      // --- Upsert Firestore pour le jour affiché ---
+      await _upsertDailyCalories(
+        day: dateForLoading,
+        neededKcal: neededWithStrava,
+        consumedKcal: consumedTodayKcal,
+        activityKcal: stravaCals,
+        mealsCount: mealsCount,
+        consumedProt_g: protG,   
+        consumedCarb_g: carbG,   
+        consumedFat_g:  fatG,
+        consumedFibres_g: fibresG,
+        consumedSatFat_g: satFatG,
+        consumedPolyFat_g: polyFatG,
+        consumedMonoFat_g: monoFatG,    
       );
 
     } catch (e) {
@@ -118,6 +196,32 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
   // ===========================================================================
   // == ACTIONS UTILISATEUR
   // ===========================================================================
+  int _countDistinctMealsByType(
+    List<Meal> meals, {
+    bool includeSnack = true,          // inclure "Collation" dans le comptage
+    double minKcalPerType = 50.0,      // seuil pour considérer un type "présent"
+  }) {
+    final allowed = <String>{
+      'Petit-déjeuner', 'Déjeuner', 'Dîner', if (includeSnack) 'Collation',
+    };
+
+    // Somme des kcal par type (plus robuste que “au moins un item”)
+    final Map<String, double> kcalPerType = { for (final t in allowed) t: 0.0 };
+
+    for (final m in meals) {
+      if (allowed.contains(m.type)) {
+        kcalPerType[m.type] = (kcalPerType[m.type]! + (m.calories));
+      }
+    }
+
+    // Un type compte comme "1 repas" si la somme dépasse le seuil
+    final presentTypes = kcalPerType.entries
+        .where((e) => e.value >= minKcalPerType)
+        .map((e) => e.key)
+        .toSet();
+
+    return presentTypes.length;
+  }
 
   Future<void> selectDate(DateTime newDate) async {
     if (DateService.formatStandard(newDate) ==
@@ -149,45 +253,53 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
   // ===========================================================================
 
   Map<String, dynamic> _calculateConsumedMacros(List<Meal> meals) {
-    double calories = 0, prot = 0, gluc = 0, lip = 0;
-    Map<String, double> caloriesParRepas = {
-      'Petit-déjeuner': 0, 'Déjeuner': 0, 'Dîner': 0, 'Collation': 0, 'Activité': 0
-    };
+  final Map<String, double> consumedMacros = {
+    "Calories": 0.0, "Protéines": 0.0, "Glucides": 0.0, "Lipides": 0.0,
+    "Fibres": 0.0, "Saturés": 0.0, "Polyinsaturés": 0.0, "Monoinsaturés": 0.0,
+  };
+  final Map<String, double> caloriesParRepas = {
+    'Petit-déjeuner': 0.0, 'Déjeuner': 0.0, 'Dîner': 0.0, 'Collation': 0.0, 'Activité': 0.0,
+  };
+  final Map<String, Map<String, double>> repartition = {
+    "Protéines": {}, "Glucides": {}, "Lipides": {}, "Fibres": {},
+    "Saturés": {}, "Polyinsaturés": {}, "Monoinsaturés": {},
+  };
+  double d(num? v) => (v ?? 0).toDouble();
+  void inc(Map<String, double> b, String k, double add) => b[k] = (b[k] ?? 0) + add;
 
-    Map<String, Map<String, double>> repartition = {
-      "Protéines": {}, "Glucides": {}, "Lipides": {},
-    };
+  for (final m in meals) {
+    consumedMacros['Calories']       = consumedMacros['Calories']!      + d(m.calories);
+    consumedMacros['Protéines']      = consumedMacros['Protéines']!     + d(m.protein);
+    consumedMacros['Glucides']       = consumedMacros['Glucides']!      + d(m.carbs);
+    consumedMacros['Lipides']        = consumedMacros['Lipides']!       + d(m.fat);
+    consumedMacros['Fibres']         = consumedMacros['Fibres']!        + d(m.fiber);
+    consumedMacros['Saturés']        = consumedMacros['Saturés']!       + d(m.fatSaturated);
+    consumedMacros['Polyinsaturés']  = consumedMacros['Polyinsaturés']! + d(m.fatPolyunsaturated);
+    consumedMacros['Monoinsaturés']  = consumedMacros['Monoinsaturés']! + d(m.fatMonounsaturated);
 
-    for (final meal in meals) {
-      calories += meal.calories;
-      prot += meal.protein;
-      gluc += meal.carbs;
-      lip += meal.fat;
-
-      if (meal.type.isNotEmpty && caloriesParRepas.containsKey(meal.type)) {
-        caloriesParRepas[meal.type] = (caloriesParRepas[meal.type]! + meal.calories);
-
-        repartition['Protéines']![meal.type] ??= 0;
-        repartition['Glucides']![meal.type] ??= 0;
-        repartition['Lipides']![meal.type] ??= 0;
-
-        repartition['Protéines']![meal.type] =
-            repartition['Protéines']![meal.type]! + meal.protein;
-        repartition['Glucides']![meal.type] =
-            repartition['Glucides']![meal.type]! + meal.carbs;
-        repartition['Lipides']![meal.type] =
-            repartition['Lipides']![meal.type]! + meal.fat;
-      }
+    if (m.type.isNotEmpty && caloriesParRepas.containsKey(m.type)) {
+      caloriesParRepas[m.type] = caloriesParRepas[m.type]! + d(m.calories);
     }
-
-    return {
-      'consumedMacros': {
-        "Calories": calories, "Protéines": prot, "Glucides": gluc, "Lipides": lip
-      },
-      'caloriesPerMeal': caloriesParRepas,
-      'macrosPerMealType': repartition,
-    };
+    if (m.type.isNotEmpty) {
+      inc(repartition['Protéines']!,      m.type, d(m.protein));
+      inc(repartition['Glucides']!,       m.type, d(m.carbs));
+      inc(repartition['Lipides']!,        m.type, d(m.fat));
+      inc(repartition['Fibres']!,         m.type, d(m.fiber));
+      inc(repartition['Saturés']!,        m.type, d(m.fatSaturated));
+      inc(repartition['Polyinsaturés']!,  m.type, d(m.fatPolyunsaturated));
+      inc(repartition['Monoinsaturés']!,  m.type, d(m.fatMonounsaturated));
+    }
   }
+
+  return {
+    'consumedMacros': consumedMacros,
+    'caloriesPerMeal': caloriesParRepas,
+    'macrosPerMealType': repartition,
+  };
+}
+
+
+
 
   Map<String, double> _calculateMacroNeeds(
     UserProfile profile,
@@ -308,13 +420,19 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
 }
 
 
+//**** POUR DEBUG */
+//void d(String msg) => debugPrint('[WEEK] $msg');
 
-  Future<Map<String, dynamic>> _collectDailyMealsData() async {
+Future<Map<String, dynamic>> _collectDailyMealsData() async {
+ 
+
   // 1) Date clé unifiée
   final dateKey = DateService.formatStandard(state.selectedDate);
+  // d('dateKey = $dateKey');
 
   // 2) Source unique (pas de doublon)
   final baseList = state.weeklyMeals[dateKey] ?? const <Meal>[];
+
   if (baseList.isEmpty) {
     return {
       "jour": {
@@ -350,7 +468,6 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
   for (final m in filtered) {
     if (seen.add(keyOf(m))) deduped.add(m);
   }
-
   // 5) Sessions (0/1 par type)
   final hasType = {
     'Petit-déjeuner': deduped.any((m) => m.type == 'Petit-déjeuner'),
@@ -366,12 +483,7 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
     'Collation':      hasType['Collation']! ? 1 : 0,
     'Activité':       hasType['Activité']! ? 1 : 0,
   };
-
-  // 6) Résumé IA
-  final summary =
-      "Résumé du jour : ${sessions['Petit-déjeuner']} petit-déjeuner, "
-      "${sessions['Déjeuner']} déjeuner, ${sessions['Dîner']} dîner, "
-      "${sessions['Collation']} collation, ${sessions['Activité']} activité.";
+ 
 
   // 7) Debug
   final counts = <String,int>{};
@@ -380,11 +492,9 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
   }
 
   // 8) ✅ Totaux FIABLES (cast double + somme simple)
-
-  int sumRound(Iterable<Meal> it, double Function(Meal m) pick) =>
-    it.fold<double>(0, (a, m) => a + pick(m)).round();
-
-
+  int sumRound(Iterable<Meal> it, num? Function(Meal m) pick) {
+  return it.fold<double>(0.0, (a, m) => a + ((pick(m) ?? 0).toDouble())).round();
+}
   final totalsPerType = <String, Map<String,int>>{
     for (final type in allowed)
       type: {
@@ -392,21 +502,25 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
         "protein": sumRound(deduped.where((m) => m.type == type), (m) => m.protein),
         "carbs":   sumRound(deduped.where((m) => m.type == type), (m) => m.carbs),
         "fat":     sumRound(deduped.where((m) => m.type == type), (m) => m.fat),
+        "fibres":  sumRound(deduped.where((m) => m.type == type), (m) => m.fiber),         
+        "saturés": sumRound(deduped.where((m) => m.type == type), (m) => m.fatSaturated),  
       }
   };
+
 
   final dayTotals = {
     "kcal":    sumRound(deduped, (m) => m.calories),
     "protein": sumRound(deduped, (m) => m.protein),
     "carbs":   sumRound(deduped, (m) => m.carbs),
     "fat":     sumRound(deduped, (m) => m.fat),
+    "fibres":  sumRound(deduped, (m) => m.fiber),
+    "saturés": sumRound(deduped, (m) => m.fatSaturated),
   };
-
 
   // 9-bis) Top 3 aliments par calories + résumé compact sur 2 lignes
   final sortedByKcal = [...deduped]..sort((a, b) => b.calories.compareTo(a.calories));
   final top = sortedByKcal.take(3).toList();
-
+  
   String _cap(String s, {int max = 22}) =>
       (s.length <= max) ? s : (s.substring(0, max - 1) + '…');
 
@@ -414,30 +528,31 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
   final intProt   = dayTotals["protein"] as int;
   final intCarbs  = dayTotals["carbs"] as int;
   final intFat    = dayTotals["fat"] as int;
+  final intFibres = dayTotals["fibres"] as int;
+  final intSat = dayTotals["saturés"] as int;
 
-  final line1 = "Total $intKcal kcal — Prot $intProt g • Gluc $intCarbs g • Lip $intFat g";
-
+  final line1 = "Total $intKcal kcal — Prot $intProt g • Gluc $intCarbs g • Lip $intFat g • Fib $intFibres g (dont sat. $intSat g)";
   String _fmtTop(Meal m) => "${_cap(m.name)} (${m.calories.round()} kcal)";
-final line2 = (top.isEmpty)
-    ? "Top cal. : —"
-    : "Top cal. : ${top.map(_fmtTop).join(" ** ")}";
+  final line2 = (top.isEmpty) ? "Top cal. : —" : "Top cal. : ${top.map(_fmtTop).join(" ** ")}";
   final shortText = "$line1\n$line2";
-
+  
   // 10) Payload complet
+  final repasList = deduped.map((m) => m.toMap()).toList();
+ 
   return {
     "jour": {
       "date": dateKey,
-      "text": shortText, //summary, -> summary = résumé plus complet du jour
+      "text": shortText, // summary possible si besoin
       "sessions": sessions,
       "itemsParType": counts,
       "totaux": dayTotals,                 // total global (ints)
       "totauxParType": totalsPerType,      // totaux par type (ints)
-      "repas": deduped.map((m) => m.toMap()).toList(),
+      "repas": repasList,
       "top2": top.map((m) => m.toMap()).toList(),
     }
   };
-
 }
+
 
 
 void toggleDailyExpanded() {
@@ -453,16 +568,27 @@ List<DateTime> _getWeekDates(DateTime startOfWeek) {
   return List.generate(7, (i) => startOfWeek.add(Duration(days: i)));
 }
 
- Future<Map<String, dynamic>> _collectWeeklyMealsData() async {
+
+
+
+Future<Map<String, dynamic>> _collectWeeklyMealsData() async {
   // ⚠️ On ne prend QUE la semaine courante (pas toutes les semaines en mémoire)
   final weekStart = state.currentWeekStart;
-  
   final weekDates = _getWeekDates(weekStart);
+  final weekDatesStr = weekDates
+      .map((dt) => '${dt.year}-${dt.month.toString().padLeft(2,'0')}-${dt.day.toString().padLeft(2,'0')}')
+      .join(', ');
+ 
+
   final dateKeys = weekDates.map(DateService.formatStandard).toList();
-  // Récup par date (évite values.expand(...) qui peut englober d'autres semaines)
+  
+
+  // Récup par date
   final Map<String, List<Meal>> byDate = {
     for (final k in dateKeys) k: (state.weeklyMeals[k] ?? const <Meal>[])
   };
+  final byDateCounts = byDate.entries.map((e) => '${e.key}: ${e.value.length}').join(', ');
+  
 
   // Types autorisés
   const allowed = {'Petit-déjeuner', 'Déjeuner', 'Dîner', 'Collation','Activité'};
@@ -474,16 +600,19 @@ List<DateTime> _getWeekDates(DateTime startOfWeek) {
 
   // Agrégats
   int breakfastDays = 0, lunchDays = 0, dinnerDays = 0, snackDays = 0, actDays = 0;
-  double wkKcal = 0, wkPro = 0, wkCarb = 0, wkFat = 0;
+  double wkKcal = 0, wkPro = 0, wkCarb = 0, wkFat = 0,wkFibres = 0, wkSat = 0;
 
   final sessionsPerDay = <String, Map<String,int>>{};
   final days = <Map<String, dynamic>>[];
 
   for (final dateKey in dateKeys) {
     final baseList = byDate[dateKey] ?? const <Meal>[];
+  
+
     if (baseList.isEmpty) {
       days.add({"date": dateKey, "repas": <Map<String, dynamic>>[], "totaux": {"kcal":0.0,"protein":0.0,"carbs":0.0,"fat":0.0}});
       sessionsPerDay[dateKey] = {"Petit-déjeuner":0,"Déjeuner":0,"Dîner":0,"Collation":0,"Activité":0};
+  
       continue;
     }
 
@@ -494,6 +623,7 @@ List<DateTime> _getWeekDates(DateTime startOfWeek) {
     for (final m in filtered) {
       if (seen.add(keyOf(m))) deduped.add(m);
     }
+  
 
     // sessions jour (0/1)
     final hasB = deduped.any((m) => m.type == 'Petit-déjeuner');
@@ -501,12 +631,6 @@ List<DateTime> _getWeekDates(DateTime startOfWeek) {
     final hasD = deduped.any((m) => m.type == 'Dîner');
     final hasS = deduped.any((m) => m.type == 'Collation');
     final hasA = deduped.any((m) => m.type == 'Activité');
-
-    breakfastDays += hasB ? 1 : 0;
-    lunchDays     += hasL ? 1 : 0;
-    dinnerDays    += hasD ? 1 : 0;
-    snackDays     += hasS ? 1 : 0;
-    actDays       += hasA ? 1 : 0;
 
     sessionsPerDay[dateKey] = {
       "Petit-déjeuner": hasB ? 1 : 0,
@@ -516,23 +640,36 @@ List<DateTime> _getWeekDates(DateTime startOfWeek) {
       "Activité":       hasA ? 1 : 0,
     };
 
+
+    // ★ Incréments oubliés
+    breakfastDays += hasB ? 1 : 0;  // ★
+    lunchDays     += hasL ? 1 : 0;  // ★
+    dinnerDays    += hasD ? 1 : 0;  // ★
+    snackDays     += hasS ? 1 : 0;  // ★
+    actDays       += hasA ? 1 : 0;  // ★
+
     // totaux jour (casts robustes)
-    double kcal = 0, pro = 0, carb = 0, fat = 0;
+    double d(num? v) => (v ?? 0).toDouble();
+    double kcal = 0, pro = 0, carb = 0, fat = 0, fibres = 0 ,sat = 0;
     for (final m in deduped) {
-      kcal += m.calories;
-      pro  += m.protein;
-      carb += m.carbs;
-      fat  += m.fat;
+      kcal   += d(m.calories);
+      pro    += d(m.protein);
+      carb   += d(m.carbs);
+      fat    += d(m.fat);
+      fibres += (m.fiber ?? 0);   
+      sat    += (m.fatSaturated ?? 0);  
     }
-    // helper d’arrondi à 1 décimale
     double round1(double x) => (x * 10).round() / 10.0; 
-   final dayTotals = {
+    final dayTotals = {
       "kcal":    round1(kcal),
       "protein": round1(pro),
       "carbs":   round1(carb),
       "fat":     round1(fat),
+      "fibres":  round1(fibres),
+      "saturés": round1(sat),
+      
     };
-
+    
     // push jour
     days.add({
       "date": dateKey,
@@ -545,28 +682,40 @@ List<DateTime> _getWeekDates(DateTime startOfWeek) {
     wkPro  += dayTotals["protein"]!;
     wkCarb += dayTotals["carbs"]!;
     wkFat  += dayTotals["fat"]!;
+    wkFibres += dayTotals["fibres"]!;
+    wkSat += dayTotals["saturés"]!;
   }
 
+  
   final summary =
       "Résumé de la semaine : $breakfastDays petits-déjeuners, "
       "$lunchDays déjeuners, $dinnerDays dîners, $snackDays collations, $actDays activité.";
+
 
   final weekTotals = {
     "kcal": double.parse(wkKcal.toStringAsFixed(1)),
     "protein": double.parse(wkPro.toStringAsFixed(1)),
     "carbs": double.parse(wkCarb.toStringAsFixed(1)),
     "fat": double.parse(wkFat.toStringAsFixed(1)),
+    "fibres": double.parse(wkFibres.toStringAsFixed(1)),
+    "saturés": double.parse(wkSat.toStringAsFixed(1)),
   };
-
-
-  return {
+ 
+  final payload = {
     "type": "week",
     "text": summary,
     "totaux": weekTotals,
     "sessionsParJour": sessionsPerDay,
     "jours": days,         // liste [{date, totaux, repas}]
   };
+
+
+ 
+  return payload;
 }
+
+
+
 
 }
 

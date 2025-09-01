@@ -38,12 +38,12 @@ class StravaService {
     if (kIsWeb) {
       web.window.localStorage.setItem("access_token", accessToken);
       web.window.localStorage.setItem("refresh_token", refreshToken);
-      logger.d("✅ Tokens stockés dans localStorage Web");
+      //logger.d("✅ Tokens stockés dans localStorage Web");
     } else {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString("access_token", accessToken);
       await prefs.setString("refresh_token", refreshToken);
-      logger.d("✅ Tokens stockés dans SharedPreferences");
+      //logger.d("✅ Tokens stockés dans SharedPreferences");
     }
   }
 
@@ -51,12 +51,12 @@ class StravaService {
   Future<String?> _getRefreshToken() async {
     if (kIsWeb) {
       final token = web.window.localStorage.getItem("refresh_token");
-      logger.d("🔍 Refresh token lu depuis localStorage Web : $token");
+      //logger.d("🔍 Refresh token lu depuis localStorage Web : $token");
       return token;
     } else {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString("refresh_token");
-      logger.d("🔍 Refresh token lu depuis SharedPreferences : $token");
+      //logger.d("🔍 Refresh token lu depuis SharedPreferences : $token");
       return token;
     }
   }
@@ -65,12 +65,12 @@ class StravaService {
   Future<String?> getAccessToken() async {
     if (kIsWeb) {
       final token = web.window.localStorage.getItem("access_token");
-      logger.d("🔍 Access token lu depuis localStorage Web : $token");
+      //logger.d("🔍 Access token lu depuis localStorage Web : $token");
       return token;
     } else {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString("access_token");
-      logger.d("🔍 Access token lu depuis SharedPreferences : $token");
+      //logger.d("🔍 Access token lu depuis SharedPreferences : $token");
       return token;
     }
   }
@@ -133,7 +133,7 @@ Future<void> refreshAccessToken() async {
 
     // ⚠️ Très important : on remplace le refresh token local par le NOUVEAU
     await _storeTokens(access, refresh);
-    logger.d("✅ Nouveau token Strava rafraîchi avec succès");
+    //logger.d("✅ Nouveau token Strava rafraîchi avec succès");
   } else {
     throw Exception("❌ Échec refresh token Strava : ${res.statusCode} ${res.body}");
   }

@@ -1,3 +1,4 @@
+
 class AlimentUsuel {
   final String aliment;
   final String groupe;
@@ -13,13 +14,15 @@ class AlimentUsuel {
     required this.commentaire,
   });
 
+  // Le constructeur fromJson a été rendu plus robuste
   factory AlimentUsuel.fromJson(Map<String, dynamic> json) {
     return AlimentUsuel(
-      aliment: json['aliment'],
-      groupe: json['groupe'],
-      poids: (json['poids'] as num).toDouble(),
-      unite: json['unite'],
-      commentaire: json['commentaire'],
+      // L'opérateur '??' signifie : "utilise la valeur de gauche si elle n'est pas nulle, sinon utilise celle de droite".
+      aliment: json['aliment'] as String? ?? 'Aliment inconnu',
+      groupe: json['groupe'] as String? ?? '',
+      poids: (json['poids'] as num? ?? 0).toDouble(),
+      unite: json['unite'] as String? ?? 'g',
+      commentaire: json['commentaire'] as String? ?? '',
     );
   }
 }

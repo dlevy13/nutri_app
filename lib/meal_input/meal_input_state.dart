@@ -11,7 +11,8 @@ class MealInputState extends Equatable {
   final List<Meal> addedFoodsForDay; // Aliments déjà ajoutés
   final List<Meal> recentSuggestions; // Suggestions fréquentes
   final List<dynamic> searchSuggestions; // Suggestions de la recherche
-  
+  final List<Meal> yesterdayMealSuggestions; 
+
   const MealInputState({
     this.status = SearchStatus.initial,
     required this.selectedMealType,
@@ -19,6 +20,7 @@ class MealInputState extends Equatable {
     this.addedFoodsForDay = const [],
     this.recentSuggestions = const [],
     this.searchSuggestions = const [],
+    this.yesterdayMealSuggestions = const [],
   });
   
   MealInputState copyWith({
@@ -27,6 +29,7 @@ class MealInputState extends Equatable {
     List<Meal>? addedFoodsForDay,
     List<Meal>? recentSuggestions,
     List<dynamic>? searchSuggestions,
+    List<Meal>? yesterdayMealSuggestions,
   }) {
     return MealInputState(
       status: status ?? this.status,
@@ -35,9 +38,17 @@ class MealInputState extends Equatable {
       addedFoodsForDay: addedFoodsForDay ?? this.addedFoodsForDay,
       recentSuggestions: recentSuggestions ?? this.recentSuggestions,
       searchSuggestions: searchSuggestions ?? this.searchSuggestions,
+      yesterdayMealSuggestions: yesterdayMealSuggestions ?? this.yesterdayMealSuggestions,
     );
   }
   
   @override
-  List<Object?> get props => [status, selectedMealType, addedFoodsForDay, recentSuggestions, searchSuggestions];
+  List<Object?> get props => [
+        status,
+        selectedMealType,
+        addedFoodsForDay,
+        recentSuggestions,
+        searchSuggestions,
+        yesterdayMealSuggestions 
+      ];
 }

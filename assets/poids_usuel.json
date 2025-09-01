@@ -35,6 +35,13 @@
     "commentaire": ""
   },
   {
+    "aliment": "Poire",
+    "groupe": "fruit",
+    "poids": 120,
+    "unite": "pièce",
+    "commentaire": ""
+  },
+  {
     "aliment": "Avocat",
     "groupe": "fruit",
     "poids": 150,

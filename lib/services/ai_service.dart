@@ -26,11 +26,11 @@ class AIService {
       } else {
         // Gère les erreurs renvoyées par la fonction Firebase
         final errorData = jsonDecode(response.body);
-        print("Erreur du backend (${response.statusCode}): ${errorData['error']}");
+        //print("Erreur du backend (${response.statusCode}): ${errorData['error']}");
         throw Exception("Erreur du backend: ${errorData['error']}");
       }
     } catch (e) {
-      print("Erreur de communication avec le service d'IA : $e");
+      //print("Erreur de communication avec le service d'IA : $e");
       throw Exception("Analyse IA indisponible. (${e.toString()})");
     }
   }

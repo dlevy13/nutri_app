@@ -1,3 +1,5 @@
+// ignore_for_file: unused_element_parameter
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -10,7 +12,9 @@ import '../repositories/strava_repository.dart';
 import '../dashboard/dashboard_notifier.dart';
 import '../dashboard/dashboard_state.dart';
 import '../widget/ai_analysis_card.dart';
-
+import '../widget/fat_breakdown_card.dart';
+import '../courbe/bej_trends_page.dart';
+import '../ui/strings.dart';
 
 
 class DashboardPage extends ConsumerWidget {
@@ -103,6 +107,8 @@ class DashboardPage extends ConsumerWidget {
             _CalorieSummaryDetailed(),
             const SizedBox(height: 24),
             _MacroDetailsDetailed(),
+            const SizedBox(height: 24),
+            const FatBreakdownCard(), 
             const SizedBox(height: 32),
             _MealCalorieBreakdown(),
             const SizedBox(height: 32),
@@ -221,7 +227,6 @@ class _CalorieSummaryDetailed extends ConsumerWidget {
   const _CalorieSummaryDetailed({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // On récupère les données depuis le state de Riverpod
     final consumed =
         ref.watch(dashboardProvider.select((s) => s.consumedMacros['Calories'] ?? 0));
     final neededWithStrava =
@@ -234,132 +239,137 @@ class _CalorieSummaryDetailed extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Le résumé textuel
+        // Résumé textuel
         Text(
           stravaCals > 0
               ? "Nécessaires : ${neededWithStrava.toStringAsFixed(0)} Kcal\n"
-                  "🔥 ${stravaCals.toStringAsFixed(0)} Kcal d'activité"
+                "🔥 ${stravaCals.toStringAsFixed(0)} Kcal d'activité"
               : "Nécessaires : ${neededWithStrava.toStringAsFixed(0)} Kcal",
           style: const TextStyle(fontSize: 16, color: Colors.grey),
         ),
         const SizedBox(height: 24),
 
-      
         LayoutBuilder(
           builder: (context, constraints) {
-            // --- Mapping des variables du state vers votre logique ---
             final double consomme = consumed;
             final double totalNecessaire = neededWithStrava;
             final double objectifSansStrava = neededWithoutStrava;
             final bool afficherOrange = stravaCals > 0;
 
-            // --- NOUVELLE STRATÉGIE DE CALCUL ---
             final double largeurTotale = constraints.maxWidth;
-            const double targetPositionRatio = 0.75; // ✅ La cible est à 75%
-
-            // ✅ 1. La limite rouge (objectif total) est maintenant positionnée à 75%
+            const double targetPositionRatio = 0.75;
             final double traitRougePos = largeurTotale * targetPositionRatio;
-
-            // ✅ 2. La limite orange est calculée proportionnellement à la position de la rouge
             final double traitOrangePos = (afficherOrange && totalNecessaire > 0)
                 ? (objectifSansStrava / totalNecessaire) * traitRougePos
                 : 0;
-
-            // ✅ 3. La barre de progression est aussi calculée par rapport à la limite rouge
-            // Quand consomme == totalNecessaire, la barre atteindra exactement le trait rouge.
             final double widthVert = (totalNecessaire > 0)
                 ? (consomme / totalNecessaire) * traitRougePos
                 : 0;
-            // --- Fin de votre logique ---
 
-            return SizedBox(
-              height: 50,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  // Fond gris
-                  Container(
-                    height: 24,
-                    width: largeurTotale,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  // Barre verte (consommation)
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 400),
-                    curve: Curves.easeInOut,
-                    height: 24,
-                    // On s'assure que la barre ne dépasse pas la largeur totale
-                    width: widthVert.clamp(0, largeurTotale), 
-                    decoration: BoxDecoration(
-                      color: const Color.fromARGB(255, 133, 194, 234),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  // Texte des calories sur la barre verte
-                  if (widthVert > 40)
-                    Positioned(
-                      left: widthVert / 2 - 25,
-                      top: 3,
-                      child: AnimatedOpacity(
-                        duration: const Duration(milliseconds: 300),
-                        opacity: 1.0,
-                        child: Text(
-                          "${consomme.toStringAsFixed(0)} kcal",
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  height: 50,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      // Fond gris
+                      Container(
+                        height: 24,
+                        width: largeurTotale,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      // Barre verte (consommation)
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 400),
+                        curve: Curves.easeInOut,
+                        height: 24,
+                        width: widthVert.clamp(0, largeurTotale),
+                        decoration: BoxDecoration(
+                          color: const Color.fromARGB(255, 133, 194, 234),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      // Texte sur la barre
+                      if (widthVert > 40)
+                        Positioned(
+                          left: (widthVert / 2 - 25).clamp(0, largeurTotale - 50),
+                          top: 3,
+                          child: AnimatedOpacity(
+                            duration: const Duration(milliseconds: 300),
+                            opacity: 1.0,
+                            child: Text(
+                              "${consomme.toStringAsFixed(0)} kcal",
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
                         ),
+                      // Trait orange (TDEE sans Strava)
+                      if (afficherOrange)
+                        Positioned(
+                          left: traitOrangePos - 1,
+                          top: 0,
+                          height: 24,
+                          child: Container(width: 2, color: Colors.orange),
+                        ),
+                      // Trait rouge (objectif total)
+                      Positioned(
+                        left: traitRougePos - 1,
+                        top: 0,
+                        height: 24,
+                        child: Container(width: 2, color: Colors.red),
                       ),
-                    ),
-                  // Trait orange (objectif de base)
-                  if (afficherOrange)
-                    Positioned(
-                      left: traitOrangePos - 1,
-                      top: 0,
-                      height: 24,
-                      child: Container(width: 2, color: Colors.orange),
-                    ),
-                  // Trait rouge (objectif total, au milieu)
-                  Positioned(
-                    left: traitRougePos - 1,
-                    top: 0,
-                    height: 24,
-                    child: Container(width: 2, color: Colors.red),
-                  ),
-                  // Texte sous le trait orange
-                  if (afficherOrange)
-                    Positioned(
-                      left: traitOrangePos - 30,
-                      top: 30,
-                      child: Text(
-                        "${objectifSansStrava.toStringAsFixed(0)} kcal",
-                        style: const TextStyle(
-                          color: Colors.orange,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
+                      // Labels
+                      if (afficherOrange)
+                        Positioned(
+                          left: traitOrangePos - 30,
+                          top: 30,
+                          child: Text(
+                            "${objectifSansStrava.toStringAsFixed(0)} kcal",
+                            style: const TextStyle(
+                              color: Colors.orange, fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      Positioned(
+                        left: traitRougePos - 30,
+                        top: -18,
+                        child: Text(
+                          "${totalNecessaire.toStringAsFixed(0)} kcal",
+                          style: const TextStyle(
+                            color: Colors.red, fontSize: 11, fontWeight: FontWeight.bold),
                         ),
                       ),
-                    ),
-                  // Texte au-dessus du trait rouge
-                  Positioned(
-                    left: traitRougePos - 30,
-                    top: -18,
-                    child: Text(
-                      "${totalNecessaire.toStringAsFixed(0)} kcal",
-                      style: const TextStyle(
-                        color: Colors.red,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+
+                // ↓↓↓ Bouton pour la page courbe BEJ ↓↓↓
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.speed, size: 18), // icône "compteur"
+                    label: const Text(L10n.seeCalometre, style: TextStyle(fontSize: 13)),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      minimumSize: const Size(0, 32),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    onPressed: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const BejTrendsPage()));
+                    },
+                  ),
+                )
+
+              ],
             );
           },
         ),
@@ -370,7 +380,7 @@ class _CalorieSummaryDetailed extends ConsumerWidget {
 
 
 
-// dans lib/features/dashboard/dashboard_page.dart
+
 
 class _MacroDetailsDetailed extends ConsumerWidget {
   @override
@@ -378,8 +388,15 @@ class _MacroDetailsDetailed extends ConsumerWidget {
     final consumed =
         ref.watch(dashboardProvider.select((s) => s.consumedMacros));
     final needed = ref.watch(dashboardProvider.select((s) => s.macroNeeds));
+// ✅ 1. Calcul du besoin en fibres basé sur les calories
+
+    final totalNeededKcal = needed['Calories'] ?? 0;
+    // On applique le ratio de 14g pour 1000 kcal
+    final fiberGoal = (totalNeededKcal / 1000) * 14;
+    final consumedFibers = ref.watch(dashboardProvider.select((s) => s.consumedMacros['Fibres'] ?? 0.0));
 
     // Vos couleurs pour la légende
+    
     final repas = ["Petit-déjeuner", "Déjeuner", "Dîner", "Collation"];
     final colorsRepas = [
       Colors.orange,
@@ -403,18 +420,60 @@ class _MacroDetailsDetailed extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Texte "Consommé / Objectif"
+                // ✅ CORRECTION APPLIQUÉE ICI
+                Builder(
+                  builder: (context) {
+                    // Cas général pour Protéines et Glucides
+                    if (macro != "Lipides") {
+                      return Text(
+                        "$macro : ${(consumed[macro] ?? 0).toStringAsFixed(0)} g / ${(needed[macro] ?? 0).toStringAsFixed(0)} g",
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      );
+                    }
+
+                    // Cas spécifique pour les Lipides
+                    final totalFat = consumed['Lipides'] ?? 0.0;
+                    final saturatedFat = consumed['Saturés'] ?? 0.0; // Assurez-vous que la clé "Saturés" existe dans votre notifier
+                    final percentage = totalFat > 0 ? (saturatedFat / totalFat) * 100 : 0.0;
+
+                    return Text(
+                      "Lipides : ${totalFat.toStringAsFixed(0)} g (${percentage.toStringAsFixed(0)}% sat.) / ${(needed['Lipides'] ?? 0).toStringAsFixed(0)} g",
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 8),
+                _MacroBreakdownBar(macro: macro),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Text(
-                  "$macro : ${(consumed[macro] ?? 0).toStringAsFixed(0)} g / ${(needed[macro] ?? 0).toStringAsFixed(0)} g",
+                  "Fibres : ${consumedFibers.toStringAsFixed(0)} g / ${fiberGoal.toStringAsFixed(0)} g",
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                const SizedBox(height: 8), // Un peu d'espace
-                
-                // ✅ ON A SUPPRIMÉ LE LINEARPROGRESSINDICATOR. IL NE RESTE QUE LA BARRE DE RÉPARTITION.
-                _MacroBreakdownBar(macro: macro),
+                const SizedBox(height: 8),
+                // On utilise une barre de progression simple ici car la répartition par repas est moins pertinente
+                LinearProgressIndicator(
+                  value: fiberGoal > 0 ? (consumedFibers / fiberGoal).clamp(0.0, 1.0) : 0.0,
+                  minHeight: 12,
+                  borderRadius: BorderRadius.circular(8),
+                  backgroundColor: Colors.grey.shade300,
+                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.brown),
+                ),
               ],
             ),
           ),
@@ -566,12 +625,7 @@ class _AiAnalysisCard extends ConsumerWidget {
 
             const Spacer(),
 
-            // ❌ on supprime le refresh ici (le bouton sera en bas de la carte)
-            // IconButton(
-            //   icon: const Icon(Icons.refresh),
-            //   tooltip: "Recalculer l’analyse",
-            //   onPressed: () => notifier.runMealAnalysis(force: true),
-            // ),
+       
           ],
         ),
       ),
@@ -712,9 +766,15 @@ class _MealCalorieBreakdown extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      "Activité (${consommeKcal.toStringAsFixed(0)} kcal)",
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    Row(
+                      children: [
+                        Text(
+                          "Activité (${consommeKcal.toStringAsFixed(0)} kcal)",
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.add_circle_outline, size: 18, color: Colors.blueGrey),
+                      ],
                     ),
                     const SizedBox(height: 4),
                     AnimatedContainer(
@@ -748,9 +808,15 @@ class _MealCalorieBreakdown extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    "$repas (${consommeKcal.toStringAsFixed(0)} / ${theoriqueKcal.toStringAsFixed(0)} kcal)",
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  Row(
+                    children: [
+                      Text(
+                        "$repas (${consommeKcal.toStringAsFixed(0)} / ${theoriqueKcal.toStringAsFixed(0)} kcal)",
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(Icons.add_circle_outline, size: 18, color: Colors.blueGrey),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   // Barre théorique (fond clair)

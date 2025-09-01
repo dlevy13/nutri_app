@@ -268,7 +268,7 @@ double _d(dynamic v) => (v is num) ? v.toDouble() : 0.0;
 Macros100 per100From(dynamic foodData) {
   // Cas A : c’est un Meal
   if (foodData is Meal) {
-    final qty = (foodData.quantity ?? 100).toDouble();
+    final qty = (foodData.quantity ).toDouble();
     final kcal = _d(foodData.calories);
     final pro  = _d(foodData.protein);
     final carb = _d(foodData.carbs);

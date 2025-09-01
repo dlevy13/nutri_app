@@ -48,7 +48,7 @@ Future<void> loadInitialData() async {
       garminLink: profile.garminLink,
     );
   } catch (e) {
-    print("Erreur de chargement du profil: $e");
+    //print("Erreur de chargement du profil: $e");
     state = state.copyWith(status: FormStatus.failure);
   }
 }

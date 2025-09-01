@@ -2,7 +2,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import '../services/api_config.dart';
+
 
 Future<List<Map<String, dynamic>>> searchFoodOnAPI(String query) async {
   final uri = Uri.parse(
@@ -49,6 +49,10 @@ List<Map<String, dynamic>> _parseOpenFood(String body) {
       'protein':  parseDouble(nutr['proteins_100g']),
       'carbs':    parseDouble(nutr['carbohydrates_100g']),
       'fat':      parseDouble(nutr['fat_100g']),
+      'fibers':             parseDouble(nutr['fiber_100g']),
+      'saturatedFat':       parseDouble(nutr['saturated-fat_100g']),
+      'polyunsaturatedFat': parseDouble(nutr['polyunsaturated-fat_100g']),
+      'monounsaturatedFat': parseDouble(nutr['monounsaturated-fat_100g']),
     };
   }).toList();
 }

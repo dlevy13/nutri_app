@@ -71,10 +71,10 @@ class StravaRepository {
       'strava_lastUpdated': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
 
-    print("✅ [StravaRepository] ${activitiesForDay.length} activités, ${totalCalories.toStringAsFixed(0)} kcal");
+    //print("✅ [StravaRepository] ${activitiesForDay.length} activités, ${totalCalories.toStringAsFixed(0)} kcal");
     return (activities: activitiesForDay, totalCalories: totalCalories);
   } catch (e) {
-    print("❌ Erreur dans StravaRepository: $e");
+    //print("❌ Erreur dans StravaRepository: $e");
     return (activities: [], totalCalories: 0.0);
   }
 }

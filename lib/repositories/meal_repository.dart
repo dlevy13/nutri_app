@@ -139,7 +139,9 @@ Future<void> updateMeal(Meal meal) async {
         .delete();
   }
 
-// enregistré repas API dans custo_foods
+// enregistré repas API dans custom_foods
+
+// dans la classe MealRepository de meal_repository.dart
 
 Future<String> upsertCustomFoodFromApi({
   required String name,
@@ -147,6 +149,11 @@ Future<String> upsertCustomFoodFromApi({
   required double proteinPer100,
   required double carbsPer100,
   required double fatPer100,
+  // ✅ AJOUT : Nouveaux paramètres pour les nutriments détaillés
+  required double fibersPer100,
+  required double saturatedFatPer100,
+  required double polyunsaturatedFatPer100,
+  required double monounsaturatedFatPer100,
   String? externalId,
   String? imageUrl,
   String source = 'api',
@@ -155,26 +162,29 @@ Future<String> upsertCustomFoodFromApi({
   if (uid == null) return '';
 
   final col = _firestore.collection('users').doc(uid).collection('custom_foods');
-
   final norm = normalize(name);
-
   String rawId = (externalId != null && externalId.trim().isNotEmpty)
       ? 'api:${externalId.trim()}'
       : 'name:$norm';
-
   final docId = rawId.replaceAll(RegExp(r'[\/?#\[\]]'), '_');
   final docRef = col.doc(docId);
   final snap = await docRef.get();
 
-  // ✅ Nouvelles clés normalisées (100 g par défaut)
   final payload = <String, dynamic>{
     'name': name.trim(),
     'normalizedName': norm,
-    'calories': kcalPer100,  // <— remplace kcalPer100
+    // Macros de base
+    'calories': kcalPer100,
     'protein': proteinPer100,
     'carbs': carbsPer100,
     'fat': fatPer100,
-    'per': 100,              // optionnel : explicite l’unité (100 g)
+    // ✅ AJOUT : Sauvegarde des nouveaux champs
+    'fibres': fibersPer100,                 // ou 'fiber' selon votre convention
+    'fat_s': saturatedFatPer100,          // ou 'saturated_fat'
+    'fat_m': monounsaturatedFatPer100,    // ou 'monounsaturated_fat'
+    'fat_p': polyunsaturatedFatPer100,    // ou 'polyunsaturated_fat'
+    
+    'per': 100,
     'imageUrl': imageUrl,
     'source': source,
     'externalId': externalId,
@@ -182,11 +192,15 @@ Future<String> upsertCustomFoodFromApi({
     'usesCount': FieldValue.increment(1),
     if (!snap.exists) 'createdAt': FieldValue.serverTimestamp(),
 
-    // 🧰 Rétro‑compat (à retirer une fois la migration finie)
+    // Rétrocompatibilité (si nécessaire)
     'kcalPer100': kcalPer100,
     'proteinPer100': proteinPer100,
     'carbsPer100': carbsPer100,
     'fatPer100': fatPer100,
+    'fiberPer100': fibersPer100,
+    'fatSaturatedPer100': saturatedFatPer100,
+    'fatMonounsaturatedPer100': monounsaturatedFatPer100,
+    'fatPolyunsaturatedPer100': polyunsaturatedFatPer100,
   };
 
   await docRef.set(payload, SetOptions(merge: true));

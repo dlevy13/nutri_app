@@ -30,7 +30,7 @@ class TrainingPlannerNotifier extends StateNotifier<TrainingPlannerState> {
         garminEvents: garminEvents,
       );
     } catch (e) {
-      print("Erreur de chargement du planning: $e");
+      //print("Erreur de chargement du planning: $e");
       state = state.copyWith(status: PlannerStatus.failure);
     }
   }

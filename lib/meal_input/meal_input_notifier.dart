@@ -11,244 +11,105 @@ import '../repositories/food_api_repository.dart';
 import '../repositories/user_repository.dart';
 
 
+// ✅ CORRECTION : Le cache interne doit gérer TOUS les nutriments
+class _Per100 {
+  final double kcal, prot, carbs, fat, fiber, satFat, polyFat, monoFat;
+  const _Per100(this.kcal, this.prot, this.carbs, this.fat, this.fiber, this.satFat, this.polyFat, this.monoFat);
+}
+
 class MealInputNotifier extends StateNotifier<MealInputState> {
   final Ref _ref;
   late final MealRepository _mealRepository = _ref.read(mealRepositoryProvider);
   Timer? _debounce;
   late final FoodAPIRepository _foodApiRepository = _ref.read(foodApiRepositoryProvider);
+  final Map<String, _Per100> _per100Cache = {};
 
+  String _mealKey(Meal m) =>
+    (m.firestoreId != null && m.firestoreId!.isNotEmpty)
+      ? m.firestoreId!
+      : '${m.name}|${m.date}|${m.type}';
+      
   MealInputNotifier(this._ref, String mealType, String selectedDateStr)
       : super(MealInputState(
           selectedMealType: mealType,
-          selectedDate: DateTime.parse(selectedDateStr), 
+          selectedDate: DateTime.parse(selectedDateStr),
         )) {
     loadInitialData();
   }
 
   Future<void> loadInitialData() async {
-    await _loadAddedFoods();
-    await _loadRecentSuggestions();
+    // On lance les chargements en parallèle pour plus d'efficacité
+    await Future.wait([
+      _loadAddedFoods(),
+      _loadRecentSuggestions(),
+      _loadYesterdayMeal(), // L'appel pour le bouton "copier"
+    ]);
+  }
+
+  void _warmPer100Cache(List<Meal> meals) {
+    for (final m in meals) {
+      final k = _mealKey(m);
+      if (_per100Cache.containsKey(k)) continue;
+      final per = _derivePer100FromMeal(m);
+      if (per != null) _per100Cache[k] = per;
+    }
   }
 
   Future<void> _loadAddedFoods() async {
     final dateKey = DateService.formatStandard(state.selectedDate);
-    final meals = await _mealRepository.getMealsForTypeAndDate(
-        state.selectedMealType, dateKey);
+    final meals = await _mealRepository.getMealsForTypeAndDate(state.selectedMealType, dateKey);
+    _warmPer100Cache(meals);
     state = state.copyWith(addedFoodsForDay: meals);
   }
 
   Future<void> _loadRecentSuggestions() async {
-    
     final suggestions = await _mealRepository.getLastMealsByType(state.selectedMealType);
     state = state.copyWith(recentSuggestions: suggestions);
   }
-// amélioration de la recherche
-// Stopwords FR minimaux (tu peux en ajouter)
-  static const Set<String> _frStop = {
-    'a','à','au','aux','de','des','du','d','la','le','les','l',
-    'un','une','et','en','sur','pour','par','avec','sans','ou','dans','chez'
-  };
-// Score source: plus petit = mieux
-int _srcScore(String? s) {
-  switch (s) {
-    case 'custom': return 0;
-    case 'api':    return 1;
-    case 'local':  return 2;
-    default:       return 3;
-  }
-}
-
-List<String> _tokens(String s) => normalize(s)
-    .split(' ')
-    .where((t) => t.isNotEmpty && !_frStop.contains(t) && t.length >= 2)
-    .toList();
-
-List<int> _scoreFor(Map<String, dynamic> item, String query) {
-  final name = (item['product_name'] as String?) ?? '';
-  final src  = (item['source'] as String?) ?? 'api';
-
-  final n  = normalize(name);
-  final nq = normalize(query);
-
-  // 1) Exact match
-  final exact = (n == nq) ? 0 : 1;
-
-  // 2) StartsWith
-  final starts = n.startsWith(nq) ? 0 : 1;
-
-  // 3) Couverture de tokens (moins manquants = mieux)
-  final nt = _tokens(n);
-  final qt = _tokens(nq);
-  int missing = 0;
-  for (final qtok in qt) {
-    final ok = nt.any((w) => w == qtok || w.startsWith(qtok) || qtok.startsWith(w) || w.contains(qtok));
-    if (!ok) missing++;
-  }
-
-  // 4) Position du 1er match (plus tôt = mieux)
-  final idx = n.indexOf(nq);
-  final pos = idx >= 0 ? idx : 1 << 20;
-
-  // 5) Priorité de la source
-  final srcSc = _srcScore(src);
-
-  // 6) Légère préférence aux noms plus courts
-  final len = n.length;
-
-  // Ordre: exact → starts → missing → pos → src → len
-  return [exact, starts, missing, pos, srcSc, len];
-}
-
-int _cmpList(List<int> a, List<int> b) {
-  for (var i = 0; i < a.length; i++) {
-    final d = a[i] - b[i];
-    if (d != 0) return d;
-  }
-  return 0;
-}
-
-void _rerank(List<Map<String, dynamic>> items, String query) {
-  items.sort((a, b) => _cmpList(_scoreFor(a, query), _scoreFor(b, query)));
-}
-
-  bool matchesQuery(String name, String query) {
-    final nn = normalize(name);
-    final nq = normalize(query);
-
-    if (nq.isEmpty) return true;
-    if (nn.contains(nq)) return true; // match direct simple
-
-    // Tokenise + retire stopwords et tokens trop courts
-    List<String> toks(String s) =>
-        s.split(' ').where((t) => t.isNotEmpty && !_frStop.contains(t) && t.length >= 2).toList();
-
-    final nameT = toks(nn);
-    final queryT = toks(nq);
-
-    if (queryT.isEmpty) return nn.contains(nq);
-
-    // Every query token must appear in any order in name tokens (exact, prefix, or contained)
-    for (final qt in queryT) {
-      final ok = nameT.any((nt) => nt == qt || nt.startsWith(qt) || qt.startsWith(nt) || nt.contains(qt));
-      if (!ok) return false;
+Future<void> _loadYesterdayMeal() async {
+    final yesterday = state.selectedDate.subtract(const Duration(days: 1));
+    final dateKey = DateService.formatStandard(yesterday);
+    final meals = await _mealRepository.getMealsForTypeAndDate(state.selectedMealType, dateKey);
+    if (mounted) {
+      state = state.copyWith(yesterdayMealSuggestions: meals);
     }
-    return true;
   }
-List<String> _qtokens(String s) => normalize(s)
-    .split(RegExp(r'\s+'))
-    .where((t) => t.isNotEmpty && !_frStop.contains(t) && t.length >= 2)
-    .toList();
 
-/// Tous les tokens de `query` sont-ils présents (exact/prefix/contains) dans `name` ?
-bool _allTokensCovered(String name, String query) {
-  final n = normalize(name);
-  final nt = _tokens(n);      // tu as déjà _tokens()
-  final qt = _qtokens(query); // tokens de la requête (stopwords retirés)
-  if (qt.isEmpty) return n.contains(normalize(query));
-  for (final qtkn in qt) {
-    final ok = nt.any((w) =>
-        w == qtkn || w.startsWith(qtkn) || qtkn.startsWith(w) || w.contains(qtkn));
-    if (!ok) return false;
-  }
-  return true;
-}
-
-/// Score bonus pour la couverture de tokens (0 = aucun, plus petit = mieux dans ton tri)
-int _tokenMissCount(String name, String query) {
-  final n = normalize(name);
-  final nt = _tokens(n);
-  final qt = _qtokens(query);
-  if (qt.isEmpty) return 0;
-  int missing = 0;
-  for (final qtkn in qt) {
-    final ok = nt.any((w) =>
-        w == qtkn || w.startsWith(qtkn) || qtkn.startsWith(w) || w.contains(qtkn));
-    if (!ok) missing++;
-  }
-  return missing; // 0 = parfait, 1 = il manque 1 token, etc.
-}
 
   void changeMealType(String newType) {
-    state = state.copyWith(selectedMealType: newType, searchSuggestions: []);
+    state = state.copyWith(selectedMealType: newType, searchSuggestions: [], yesterdayMealSuggestions: []);
     loadInitialData();
   }
-Future<void> updateFoodQuantity(Meal meal, double newQty) async {
-  // 1) Recalcule les macros par règle de 3 (ou utilise tes champs *_per100g si tu les as)
-  final baseQty = (meal.quantity).toDouble();
-  final safeBase = baseQty <= 0 ? 100.0 : baseQty;
+  
+  // ✅ CORRECTION : La mise à jour de quantité gère maintenant TOUS les nutriments
+  Future<void> updateFoodQuantity(Meal meal, double newQty) async {
+    final key = _mealKey(meal);
+    _per100Cache.putIfAbsent(key, () => _derivePer100FromMeal(meal) ?? const _Per100(0,0,0,0,0,0,0,0));
 
-  final c100 = meal.calories * 100 / safeBase;
-  final p100 = meal.protein * 100 / safeBase;
-  final g100 = meal.carbs * 100 / safeBase;
-  final f100 = meal.fat * 100 / safeBase;
+    final per = _per100Cache[key]!;
+    final q = (newQty.isNaN || newQty.isInfinite || newQty < 0) ? 0.0 : newQty;
+    
+    // On met à jour les champs totaux en utilisant les noms de champs de votre modèle
+    meal
+      ..quantity = q
+      ..calories = per.kcal * q / 100.0
+      ..protein = per.prot * q / 100.0
+      ..carbs = per.carbs * q / 100.0
+      ..fat = per.fat * q / 100.0
+      ..fiber = per.fiber * q / 100.0
+      ..fatSaturated = per.satFat * q / 100.0
+      ..fatPolyunsaturated = per.polyFat * q / 100.0
+      ..fatMonounsaturated = per.monoFat * q / 100.0;
 
-  final newMeal = Meal(
-  name: meal.name,
-  calories: c100 * newQty / 100,
-  protein:  p100 * newQty / 100,
-  carbs:    g100 * newQty / 100,
-  fat:      f100 * newQty / 100,
-  quantity: newQty,
-  type: meal.type,
-  date: meal.date,
-  firestoreId: meal.firestoreId, // 👈 garde l’id si présent
-      // etc. copie tes autres champs si tu en as
-);
-
-  // 2) Persistance : update si on a l'id Firestore, sinon fallback delete+add
-  try {
-    if (newMeal.firestoreId != null && newMeal.firestoreId!.isNotEmpty) {
-      await _mealRepository.updateMeal(newMeal);
-    } else {
-      await _mealRepository.deleteMeal(meal);
-      await _mealRepository.addMeal(newMeal);
+    await _mealRepository.updateMeal(meal);
+    
+    final list = [...state.addedFoodsForDay];
+    final idx = list.indexWhere((m) => _mealKey(m) == key);
+    if (idx != -1) {
+      list[idx] = meal;
+      state = state.copyWith(addedFoodsForDay: list);
     }
-  } catch (e) {
-    // Option: notifier l'UI d'une erreur
-    // state = state.copyWith(errorMessage: "MAJ quantité impossible: $e");
   }
-
-  // 3) Recharge (ou mets à jour localement la liste si tu préfères)
-  await _loadAddedFoods();
-}
-
-
-
-Future<void> addFood(dynamic foodData, double quantity) async {
-  // Si la sélection vient de la recherche (Map "API-like"), on passe par _addFromApiLike.
-  if (foodData is Map<String, dynamic> && foodData.containsKey('nutriments')) {
-    final src = (foodData['source'] as String?) ?? 'api';
-    await _addFromApiLike(foodData, quantity, source: src);
-    return;
-  }
-
-  // Legacy: Meal (absolu) ou Map sans 'nutriments' -> on garde ton comportement existant
-  final dateKey = DateService.formatStandard(state.selectedDate);
-
-  final Meal? meal = switch (foodData) {
-    Meal m => m,
-    Map<String, dynamic> m => Meal.fromMap(m),
-    _ => null,
-    };
-  if (meal == null) return;
-
-  final newMeal = Meal(
-    name: meal.name,
-    calories: (meal.calories * quantity / 100),
-    protein:  (meal.protein  * quantity / 100),
-    carbs:    (meal.carbs    * quantity / 100),
-    fat:      (meal.fat      * quantity / 100),
-    quantity: quantity,
-    type: state.selectedMealType,
-    date: dateKey,
-  );
-
-  await _mealRepository.addMeal(newMeal);
-  await _loadAddedFoods();
-  state = state.copyWith(searchSuggestions: []);
-}
-
-
   
   Future<void> createAndAddFood({
     required String name,
@@ -256,348 +117,277 @@ Future<void> addFood(dynamic foodData, double quantity) async {
     required double protein,
     required double carbs,
     required double fat,
+    required double fibers,
+    required double saturatedFat,
+    required double polyunsaturatedFat,
+    required double monounsaturatedFat,
     required double quantity,
   }) async {
-      final dateKey = DateService.formatStandard(state.selectedDate);
-      final newMeal = Meal(
-          name: name,
-          calories: calories,
-          protein: protein,
-          carbs: carbs,
-          fat: fat,
-          quantity: quantity,
-          type: state.selectedMealType,
-          date: dateKey
-      );
-      // On l'ajoute comme un repas consommé
-      await addFood(newMeal, quantity);
-      // ✅ Étape 1 : Sauvegarder comme un aliment personnalisé réutilisable
+    final newMeal = await addFromPer100(
+      name: name,
+      kcalPer100: calories,
+      proteinPer100: protein,
+      carbsPer100: carbs,
+      fatPer100: fat,
+      fibersPer100: fibers,
+      saturatedFatPer100: saturatedFat,
+      polyunsaturatedFatPer100: polyunsaturatedFat,
+      monounsaturatedFatPer100: monounsaturatedFat,
+      qty: quantity,
+    );
+
+    if (newMeal != null) {
       await _ref.read(userRepositoryProvider).saveCustomFood(newMeal);
+    }
   }
 
   Future<void> removeFood(Meal meal) async {
+    _per100Cache.remove(_mealKey(meal));
     await _mealRepository.deleteMeal(meal);
     await _loadAddedFoods();
   }
-
-void searchFood(String query, {bool forceOnline = false}) {
-  if (_debounce?.isActive ?? false) _debounce!.cancel();
-  _debounce = Timer(const Duration(milliseconds: 300), () async {
-    final q = query.trim();
-    if (q.length < 3) {
-      if (mounted) state = state.copyWith(searchSuggestions: [], status: SearchStatus.initial);
-      return;
-    }
-    if (mounted) state = state.copyWith(status: SearchStatus.loading);
-
-    try {
-      // 1) LOCAL : assets + custom (en parallèle)
-      final results = await Future.wait([
-        rootBundle.loadString('assets/food_data.json'),
-        _ref.read(userRepositoryProvider).getCustomFoods(),
-      ]);
-
-      final List<dynamic> localJson = jsonDecode(results[0] as String) as List<dynamic>;
-      final List<Meal> customFoods = results[1] as List<Meal>;
-      final qLower = q.toLowerCase();
-
-      // Local (assets) → API-like
-      final localResults = localJson
-          .where((f) => matchesQuery((f['name'] as String?) ?? '', q))
-          .map<Map<String, dynamic>>((f) => {
-                'product_name': f['name'] ?? 'Nom inconnu',
-                'nutriments': {
-                  'energy-kcal_100g': f['calories'],
-                  'proteins_100g': f['protein'],
-                  'carbohydrates_100g': f['carbs'],
-                  'fat_100g': f['fat'],
-                },
-                'source': 'local',
-              })
-          .toList();
-
-      // Custom (Firestore) → API-like
-      final customResults = customFoods
-          .where((m) => matchesQuery(m.name, q))
-          .map<Map<String, dynamic>>((m) => {
-                'product_name': m.name,
-                'nutriments': {
-                  'energy-kcal_100g': m.calories,
-                  'proteins_100g': m.protein,
-                  'carbohydrates_100g': m.carbs,
-                  'fat_100g': m.fat,
-                },
-                'source': 'custom',
-                'docId': m.firestoreId,
-              })
-          .toList();
-
-      // Fusion locale (priorité custom > local) + dédoublonnage
-      final combinedLocal = <Map<String, dynamic>>[
-        ...customResults,
-        ...localResults,
-      ];
-      final localDedup = _dedupApiLike(combinedLocal, limit: 50);
-
-      // --- Évaluer la "force" du local ---
-      bool hasExact = false, hasPrefix = false;
-      int topLocalScore = 0;
-
-      String _norm(String s) => normalize(s);
-      int _scoreOf(String name, String nq) {
-        final n = _norm(name);
-        final qn = _norm(nq);
-        if (n == qn) return 100;     // exact
-        if (n.startsWith(qn)) return 95; // préfixe fort
-        if (n.contains(qn)) return 80;   // contient
-        return 50;
+  
+  // ✅ CORRECTION : La recherche est SIMPLIFIÉE et utilise le Repository
+  void searchFood(String query, {bool forceOnline = false}) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () async {
+      final q = query.trim();
+      if (q.length < 3) {
+        if (mounted) state = state.copyWith(searchSuggestions: [], status: SearchStatus.initial);
+        return;
       }
+      if (mounted) state = state.copyWith(status: SearchStatus.loading);
 
-      for (final m in localDedup) {
-        final name = (m['product_name'] as String?) ?? '';
-        final s = _scoreOf(name, q);
-        if (s > topLocalScore) topLocalScore = s;
-        final n = _norm(name);
-        final nq = _norm(q);
-        if (n == nq) hasExact = true;
-        if (n.startsWith(nq)) hasPrefix = true;
-      }
+      try {
+        final localResults = await _searchLocal(q);
+        final bool needApi = forceOnline || localResults.length < 5;
 
-      // --- Couverture multi‑tokens : tous les mots de la requête sont-ils couverts par un item local ? ---
-      final qTokens = _qtokens(q);
-      final bool hasAllTokensCoveredLocally = localDedup.any((m) {
-        final name = (m['product_name'] as String?) ?? '';
-        return _allTokensCovered(name, q);
-      });
-
-      // --- Décision API ---
-      final bool needApi = forceOnline
-                        || localDedup.isEmpty
-                        || (q.length >= 5 && !(hasExact || hasPrefix))
-                        || (localDedup.length < 3)
-                        || (topLocalScore < 90 && q.length >= 5)
-                        || (qTokens.length >= 2 && !hasAllTokensCoveredLocally);
-
-      // 2) API si besoin
-      List<Map<String, dynamic>> apiResults = const [];
-      if (needApi) {
-        try {
-          final List<Map<String, dynamic>> apiRaw = await _foodApiRepository.search(q);
-          apiResults = apiRaw
-              .map((r) {
-                final nutr = (r['nutriments'] as Map?)?.cast<String, dynamic>()
-                            ?? (r['nutriments_per_100g'] as Map?)?.cast<String, dynamic>()
-                            ?? const <String, dynamic>{};
-                return <String, dynamic>{
-                  'product_name': (r['product_name'] ?? r['name'] ?? 'Aliment') as String,
-                  'nutriments': {
-                    'energy-kcal_100g':   nutr['energy-kcal_100g'] ?? nutr['kcal_100g'] ?? nutr['kcal'],
-                    'proteins_100g':      nutr['proteins_100g'] ?? nutr['protein_100g'] ?? nutr['protein'],
-                    'carbohydrates_100g': nutr['carbohydrates_100g'] ?? nutr['carbs_100g'] ?? nutr['carbs'],
-                    'fat_100g':           nutr['fat_100g'] ?? nutr['fat'],
-                  },
-                  'id': r['id'] ?? r['code'],
-                  'image_url': r['image_url'] ?? r['image_front_url'],
-                  'source': 'api',
-                };
-              })
-              .where((m) => ((m['product_name'] as String?) ?? '')
-                  .toLowerCase()
-                  .contains(qLower))
-              .toList();
-        } catch (_) {
-          // on tolère l’échec API, on garde le local
+        List<Map<String, dynamic>> apiResults = [];
+        if (needApi) {
+          // Utilise le repository qui fait déjà le parsing !
+          apiResults = await _foodApiRepository.search(q);
         }
+
+        final combined = [...localResults, ...apiResults];
+        final dedup = _dedupApiLike(combined);
+
+        if (mounted) {
+          state = state.copyWith(searchSuggestions: dedup, status: SearchStatus.success);
+        }
+      } catch (e) {
+        if (mounted) state = state.copyWith(status: SearchStatus.failure);
       }
-
-      // 3) Fusion finale (priorité custom > api > local) + dédoublonnage + re‑ranking
-      final combined = <Map<String, dynamic>>[
-        ...customResults,
-        ...apiResults,
-        ...localResults,
-      ];
-      final dedup = _dedupApiLike(combined, limit: 50);
-
-      // Booster le tri avec la couverture de tokens (prend effet via _scoreFor modifié plus bas)
-      _rerank(dedup, q);
-
-      if (mounted) {
-        state = state.copyWith(searchSuggestions: dedup, status: SearchStatus.success);
-      }
-    } catch (e) {
-      if (mounted) state = state.copyWith(status: SearchStatus.failure);
-    }
-  });
-}
-
-
-
-
-List<Map<String, dynamic>> _dedupApiLike(List<Map<String, dynamic>> items, {int limit = 50}) {
-  final seenIds = <String>{};
-  final seenNames = <String>{};
-  final out = <Map<String, dynamic>>[];
-
-  for (final m in items) {
-    final id = (m['id'] ?? m['docId'])?.toString();
-    final name = (m['product_name'] as String?) ?? '';
-    final nameKey = normalize(name);
-
-    // Unicité d’abord par id si présent (utile pour API), sinon par nom normalisé
-    if (id != null && id.isNotEmpty) {
-      if (seenIds.add(id)) {
-        out.add(m);
-      }
-    } else {
-      if (seenNames.add(nameKey)) {
-        out.add(m);
-      }
-    }
-
-    if (out.length >= limit) break;
+    });
   }
-  return out;
-}
 
+  Future<List<Map<String, dynamic>>> _searchLocal(String q) async {
+    final results = await Future.wait([
+      rootBundle.loadString('assets/food_data.json'),
+      _ref.read(userRepositoryProvider).getCustomFoods(),
+    ]);
 
+    final List localJson = jsonDecode(results[0] as String);
+    final List<Meal> customFoods = results[1] as List<Meal>;
+    
+    // Transforme les aliments locaux (assets)
+    final localResults = localJson
+        .where((f) => normalize(f['name'] ?? '').contains(normalize(q)))
+        .map<Map<String, dynamic>>((f) => {
+              'product_name': f['name'], 'source': 'local',
+              'nutriments': {
+                'energy-kcal_100g': f['calories'], 'proteins_100g': f['protein'],
+                'carbohydrates_100g': f['carbs'], 'fat_100g': f['fat'],
+                'fiber_100g': f['fibres'], 
+                'saturated-fat_100g': f['fat_sa'], // Assurez-vous que ces clés correspondent à votre JSON
+                'monounsaturated-fat_100g': f['fat_mi'],
+                'polyunsaturated-fat_100g': f['fat_pi'],
+              }
+            }).toList();
+
+    // Transforme les aliments personnalisés
+    final customResults = customFoods
+        .where((m) => normalize(m.name).contains(normalize(q)))
+        .map<Map<String, dynamic>>((m) => {
+              'product_name': m.name, 'source': 'custom',
+              'nutriments': {
+                'energy-kcal_100g': m.kcalPer100X, 'proteins_100g': m.proteinPer100X,
+                'carbohydrates_100g': m.carbsPer100X, 'fat_100g': m.fatPer100X,
+                'fiber_100g': m.fiberPer100X, 'saturated-fat_100g': m.fatSaturatedPer100X,
+                'monounsaturated-fat_100g': m.fatMonounsaturatedPer100X,
+                'polyunsaturated-fat_100g': m.fatPolyunsaturatedPer100X,
+              }
+            }).toList();
+            
+    return [...customResults, ...localResults];
+  }
+
+  List<Map<String, dynamic>> _dedupApiLike(List<Map<String, dynamic>> items, {int limit = 50}) {
+    final seenNames = <String>{};
+    final out = <Map<String, dynamic>>[];
+    for (final m in items) {
+      final name = (m['product_name'] as String?) ?? '';
+      if (seenNames.add(normalize(name))) {
+        out.add(m);
+      }
+      if (out.length >= limit) break;
+    }
+    return out;
+  }
   
   void clearSearch() {
-      state = state.copyWith(searchSuggestions: [], status: SearchStatus.initial);
-  }
-  /// Lance une recherche sur l'API externe.
-  Future<void> searchFoodFromAPI(String query) async {
-  state = state.copyWith(status: SearchStatus.loading); 
-  try {
-    final raw = await _foodApiRepository.search(query);
-    // Normalise en forme "API-like"
-    final results = raw.map<Map<String, dynamic>>((r) {
-      final nutr = r['nutriments'] ?? r['nutriments_per_100g'] ?? {};
-      return {
-        'product_name': r['product_name'] ?? r['name'] ?? 'Aliment',
-        'nutriments': {
-          'energy-kcal_100g': nutr['energy-kcal_100g'] ?? nutr['kcal_100g'] ?? nutr['kcal'],
-          'proteins_100g':    nutr['proteins_100g']    ?? nutr['protein_100g'] ?? nutr['protein'],
-          'carbohydrates_100g': nutr['carbohydrates_100g'] ?? nutr['carbs_100g'] ?? nutr['carbs'],
-          'fat_100g':           nutr['fat_100g']           ?? nutr['fat'],
-        },
-        'id': r['id'] ?? r['code'],
-        'image_url': r['image_url'],
-        'source': 'api',
-      };
-    }).toList();
-
-    state = state.copyWith(searchSuggestions: results, status: SearchStatus.success);
-  } catch (e) {
-    state = state.copyWith(status: SearchStatus.failure);
-  }
-}
-
-
-  /// À appeler depuis l’UI quand l’utilisateur clique une suggestion.
-/// Supporte :
-/// - item "API-like"  => contient 'product_name' + 'nutriments' (OpenFoodFacts-like)
-/// - item custom/local => même forme "API-like" mais avec 'source' = 'custom' | 'local'
-Future<void> selectSuggestion(Map<String, dynamic> item, double qty) async {
-  final source = (item['source'] as String?) ?? 'api'; // défaut: api
-  if (item.containsKey('nutriments')) {
-    await _addFromApiLike(item, qty, source: source);
-  } else {
-    //fallback: si jamais tu passes un Meal.toMap() brut
-    await addFood(item, qty);
-  }
-}
-Future<void> _addFromApiLike(Map<String, dynamic> item, double qty, {required String source}) async {
-  final q = (qty <= 0) ? 100.0 : qty;
-
-  // nom: accepte product_name OU name
-  final name = (item['product_name'] as String?)?.trim()
-      ?? (item['name'] as String?)?.trim()
-      ?? 'Aliment';
-
-  final nutr = (item['nutriments'] as Map?) ?? const {};
-
-  double _toD(dynamic v) {
-    if (v == null) return 0.0;
-    if (v is num) return v.toDouble();
-    return double.tryParse(v.toString().replaceAll(',', '.')) ?? 0.0;
+    state = state.copyWith(searchSuggestions: [], status: SearchStatus.initial);
   }
 
-  // helpers clés multiples
-  double _pick(Map src, List<String> keys) {
-    for (final k in keys) {
-      if (src.containsKey(k) && src[k] != null) return _toD(src[k]);
+  Future<void> addFood(dynamic foodData, double quantity) async {
+    if (foodData is Map<String, dynamic> && foodData.containsKey('nutriments')) {
+      await _addFromApiLike(foodData, quantity);
     }
-    return 0.0;
   }
 
-  // kcal depuis nutriments (ou racine) ; si absent, tente kJ → kcal
-  double kcal100 = _pick(nutr, ['energy-kcal_100g','kcal_100g','calories','kcal']);
-  if (kcal100 == 0) {
-    kcal100 = _pick(item, ['energy-kcal_100g','kcal_100g','calories','kcal']);
-  }
-  if (kcal100 == 0) {
-    final kj = _pick(nutr, ['energy-kj_100g','kj_100g','energy_100g']);
-    kcal100 = (kj > 0) ? (kj / 4.184) : 0.0;
-  }
-  if (kcal100 == 0) {
-    final kj = _pick(item, ['energy-kj_100g','kj_100g','energy_100g']);
-    kcal100 = (kj > 0) ? (kj / 4.184) : 0.0;
-  }
+  /// NOUVELLE MÉTHODE pour ajouter une liste d'aliments
+Future<void> addMultipleFoods(List<({Meal meal, double quantity})> items) async {
+    for (final item in items) {
+      final meal = item.meal;
+      final qty = item.quantity;
 
-  final p100 = _pick(nutr, ['proteins_100g','protein_100g','protein','proteins']);
-  final c100 = _pick(nutr, ['carbohydrates_100g','carbs_100g','carbs','carbohydrates']);
-  final f100 = _pick(nutr, ['fat_100g','fat']);
-
-  // secours au niveau racine si tout est à 0
-  final allZero = (kcal100 == 0 && p100 == 0 && c100 == 0 && f100 == 0);
-  final pp100   = allZero ? _pick(item, ['proteins_100g','protein_100g','protein','proteins']) : p100;
-  final cc100   = allZero ? _pick(item, ['carbohydrates_100g','carbs_100g','carbs','carbohydrates']) : c100;
-  final ff100   = allZero ? _pick(item, ['fat_100g','fat']) : f100;
-  final kk100   = kcal100; // déjà traité kJ -> kcal ci-dessus
-
-  // si encore tout 0 → on sort proprement (pas d’insert 0/0/0/0)
-  if (kk100 == 0 && pp100 == 0 && cc100 == 0 && ff100 == 0) {
-    return;
+      // On réutilise la logique existante pour ajouter un aliment
+      await addFromPer100(
+        name: meal.name,
+        kcalPer100: meal.kcalPer100X,
+        proteinPer100: meal.proteinPer100X,
+        carbsPer100: meal.carbsPer100X,
+        fatPer100: meal.fatPer100X,
+        fibersPer100: meal.fibersPer100X,
+        saturatedFatPer100: meal.saturatedFatPer100X,
+        polyunsaturatedFatPer100: meal.polyunsaturatedFatPer100X,
+        monounsaturatedFatPer100: meal.monounsaturatedFatPer100X,
+        qty: qty,
+      );
+    }
+    // Les rechargements sont déjà gérés par addFromPer100
   }
+  // ✅ L'ajout depuis la recherche est simplifié et gère TOUS les nutriments
+  // dans la classe MealInputNotifier de meal_input_notifier.dart
 
-  // upsert fiche si ça vient de l’API (uniquement si valeurs valides)
-  if (source == 'api') {
+Future<void> _addFromApiLike(Map<String, dynamic> item, double qty) async {
+  final name = (item['product_name'] as String?)?.trim() ?? 'Aliment';
+  final nutr = (item['nutriments'] as Map<String, dynamic>?) ?? {};
+
+  double toD(dynamic v) => (v is num) ? v.toDouble() : (double.tryParse(v.toString().replaceAll(',', '.')) ?? 0.0);
+  
+  final kcal100 = toD(nutr['energy-kcal_100g']);
+  final p100 = toD(nutr['proteins_100g']);
+  final c100 = toD(nutr['carbohydrates_100g']);
+  final f100 = toD(nutr['fat_100g']);
+  final fbr100 = toD(nutr['fiber_100g']);
+  final sat100 = toD(nutr['saturated-fat_100g']);
+  final poly100 = toD(nutr['polyunsaturated-fat_100g']);
+  final mono100 = toD(nutr['monounsaturated-fat_100g']);
+  
+  // On ne sauvegarde que si les données nutritionnelles de base sont valides
+  if (kcal100 > 0 || p100 > 0 || c100 > 0 || f100 > 0) {
+    // ✅ CORRECTION : On réintègre l'appel pour sauvegarder l'aliment
     await _mealRepository.upsertCustomFoodFromApi(
       name: name,
-      kcalPer100: kk100,
-      proteinPer100: pp100,
-      carbsPer100: cc100,
-      fatPer100: ff100,
-      externalId: (item['id'] ?? item['code'] ?? item['_id'])?.toString(),
+      kcalPer100: kcal100,
+      proteinPer100: p100,
+      carbsPer100: c100,
+      fatPer100: f100,
+      fibersPer100: fbr100,
+      saturatedFatPer100: sat100,
+      polyunsaturatedFatPer100: poly100,
+      monounsaturatedFatPer100: mono100,
+      externalId: (item['id'] ?? item['code'])?.toString(),
+      imageUrl: (item['image_url'] as String?),
       source: 'api',
     );
   }
-
-  final dateKey = DateService.formatStandard(state.selectedDate);
-  final newMeal = Meal(
+  
+  // On continue ensuite pour ajouter l'aliment au repas du jour
+  await addFromPer100(
     name: name,
-    calories: kk100 * q / 100.0,
-    protein:  pp100 * q / 100.0,
-    carbs:    cc100 * q / 100.0,
-    fat:      ff100 * q / 100.0,
-    quantity: q,
-    type: state.selectedMealType,
-    date: dateKey,
+    kcalPer100: kcal100,
+    proteinPer100: p100,
+    carbsPer100: c100,
+    fatPer100: f100,
+    fibersPer100: fbr100,
+    saturatedFatPer100: sat100,
+    polyunsaturatedFatPer100: poly100,
+    monounsaturatedFatPer100: mono100,
+    qty: qty,
   );
-
-  // Choisis UN seul flux : soit optimiste, soit reload.
-  // 👉 je te conseille le reload (pas de flicker/doublon visuel)
-  await _mealRepository.addMeal(newMeal);
-  await _loadAddedFoods();
-  await _loadRecentSuggestions();
-  state = state.copyWith(searchSuggestions: []);
 }
 
+  // ✅ Cette fonction devient la méthode centrale pour créer un Meal et retourne le Meal créé
+  Future<Meal?> addFromPer100({
+    required String name,
+    required double kcalPer100,
+    required double proteinPer100,
+    required double carbsPer100,
+    required double fatPer100,
+    required double fibersPer100,
+    required double saturatedFatPer100,
+    required double polyunsaturatedFatPer100,
+    required double monounsaturatedFatPer100,
+    required double qty,
+  }) async {
+    final q = (qty <= 0) ? 100.0 : qty;
+    final dateKey = DateService.formatStandard(state.selectedDate);
+    double pp(double v) => (v * q / 100.0);
 
+    final newMeal = Meal(
+      name: name,
+      type: state.selectedMealType,
+      date: dateKey,
+      quantity: q,
+      calories: pp(kcalPer100),
+      protein:  pp(proteinPer100),
+      carbs:    pp(carbsPer100),
+      fat:      pp(fatPer100),
+      fiber:    pp(fibersPer100),
+      fatSaturated: pp(saturatedFatPer100),
+      fatPolyunsaturated: pp(polyunsaturatedFatPer100),
+      fatMonounsaturated: pp(monounsaturatedFatPer100),
+      kcalPer100: kcalPer100,
+      proteinPer100: proteinPer100,
+      carbsPer100: carbsPer100,
+      fatPer100: fatPer100,
+      fiberPer100: fibersPer100,
+      fatSaturatedPer100: saturatedFatPer100,
+      fatPolyunsaturatedPer100: polyunsaturatedFatPer100,
+      fatMonounsaturatedPer100: monounsaturatedFatPer100,
+    );
 
+    await _mealRepository.addMeal(newMeal);
+    await _loadAddedFoods();
+    await _loadRecentSuggestions();
+    state = state.copyWith(searchSuggestions: []);
+    return newMeal;
+  }
 }
 
-// Le provider.family reste le même
+// ✅ Le cache et sa déduction sont mis à jour pour tous les champs
+_Per100? _derivePer100FromMeal(Meal m) {
+  // Priorité aux valeurs /100g explicites
+  if ((m.kcalPer100 ?? 0) > 0) {
+    return _Per100(
+      m.kcalPer100!, m.proteinPer100!, m.carbsPer100!, m.fatPer100!,
+      m.fiberPer100 ?? 0, m.fatSaturatedPer100 ?? 0, 
+      m.fatPolyunsaturatedPer100 ?? 0, m.fatMonounsaturatedPer100 ?? 0
+    );
+  }
+  // Sinon, calcul à partir des totaux si la quantité est valide
+  if (m.quantity > 0) {
+    double calc(double? total) => ((total ?? 0) * 100.0) / m.quantity;
+    return _Per100(
+      calc(m.calories), calc(m.protein), calc(m.carbs), calc(m.fat),
+      calc(m.fiber), calc(m.fatSaturated),
+      calc(m.fatPolyunsaturated), calc(m.fatMonounsaturated)
+    );
+  }
+  return null;
+}
+
 final mealInputProvider = StateNotifierProvider.autoDispose.family<MealInputNotifier, MealInputState, (String, String)>(
   (ref, params) => MealInputNotifier(ref, params.$1, params.$2),
 );
