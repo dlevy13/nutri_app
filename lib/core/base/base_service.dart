@@ -3,11 +3,9 @@ import 'package:logger/logger.dart';
 import '../logger.dart';
 
 class BaseService {
-  Logger log;
+  late final Logger log;
 
-  BaseService({String title}) {
-    this.log = getLogger(
-      title ?? this.runtimeType.toString(),
-    );
+  BaseService({String? title}) {
+    log = getLogger(title ?? runtimeType.toString());
   }
 }

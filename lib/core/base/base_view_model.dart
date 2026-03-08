@@ -3,17 +3,17 @@ import 'package:logger/logger.dart';
 import '../logger.dart';
 
 class BaseViewModel extends ChangeNotifier {
-  String _title;
+  String? _title;
   bool _busy;
-  Logger log;
+  late final Logger log;
   bool _isDisposed = false;
 
   BaseViewModel({
     bool busy = false,
-    String title,
+    String? title,
   })  : _busy = busy,
       _title = title {
-    log = getLogger(title ?? this.runtimeType.toString());
+    log = getLogger(title ?? runtimeType.toString());
   }
 
   bool get busy => this._busy;
