@@ -3,14 +3,14 @@ import 'package:logger/logger.dart';
 import '../logger.dart';
 
 class BaseViewModel extends ChangeNotifier {
-  String _title;
+  String? _title;
   bool _busy;
-  Logger log;
+  late Logger log;
   bool _isDisposed = false;
 
   BaseViewModel({
     bool busy = false,
-    String title,
+    String? title,
   })  : _busy = busy,
       _title = title {
     log = getLogger(title ?? this.runtimeType.toString());
@@ -36,7 +36,7 @@ class BaseViewModel extends ChangeNotifier {
         super.notifyListeners();
     } else {
         log.w('notifyListeners: Notify listeners called after '
-            '${title ?? this.runtimeType.toString()} has been disposed');
+            '$title has been disposed');
     }
   }
 

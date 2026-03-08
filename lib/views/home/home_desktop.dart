@@ -22,7 +22,7 @@ class _HomeDesktop extends StatelessWidget {
             ),
             Text(
               '${viewModel.counter}',
-              style: Theme.of(context).textTheme.display1,
+              style: Theme.of(context).textTheme.headlineMedium,
             ),
           ],
         ),
