@@ -20,7 +20,7 @@ class LegalNoticePage extends StatelessWidget {
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 12),
-            Text('Éditeur : NutriApp\nEmail : contact@nutriapp.com\nHébergeur : Firebase / Google LLC'),
+            Text('Éditeur : NutriApp\nEmail : contact@nutriapp.com\nHébergeur : Firebase / Google LLC & © Supabase Inc'),
             SizedBox(height: 24),
 
             Text(
@@ -41,8 +41,7 @@ class LegalNoticePage extends StatelessWidget {
             ),
             SizedBox(height: 12),
             Text(
-              'L\'application peut utiliser des cookies ou traceurs à des fins de mesure d\'audience ou de personnalisation. '
-              'Aucun cookie publicitaire n\'est utilisé sans votre consentement explicite.',
+              'L\'application n\'utilise aucun cookie ni traceur. Votre email sert à vous envoyer les mises à jour',
             ),
           ],
         ),

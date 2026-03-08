@@ -8,7 +8,7 @@ part of 'analysis.dart';
 
 class AnalysisAdapter extends TypeAdapter<Analysis> {
   @override
-  final int typeId = 2;
+  final int typeId = 1;
 
   @override
   Analysis read(BinaryReader reader) {

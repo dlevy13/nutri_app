@@ -1,110 +1,219 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+// ---------------- IMPORTS FIRST (mandatory in Dart) ----------------
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive/hive.dart';
+
 import '../services/strava_service.dart';
+import '../services/strava_service_mobile.dart';
+import '../services/strava_service_web.dart';
+
+import '../services/date_service.dart';
+import '../providers/common_providers.dart'; // dailyCaloriesRepositoryProvider
+import '../services/strava_service_shared.dart';
+import '../models/strava_day_activities.dart';
+
+
+
+// ---------------- REPOSITORY ----------------
 
 class StravaRepository {
-  final StravaService _stravaService;
-  final FirebaseFirestore _firestore;
-  final FirebaseAuth _auth;
+  final StravaServiceShared _stravaService;
+  final Ref _ref;
 
-  StravaRepository(this._stravaService, this._firestore, this._auth);
+  StravaRepository(this._stravaService, this._ref);
 
-  User? get _currentUser => _auth.currentUser;
-  StravaService getStravaService() => _stravaService;
+  StravaServiceShared getStravaService() => _stravaService;
 
-  Future<({List<dynamic> activities, double totalCalories})> getActivitiesAndCaloriesForDate(DateTime date) async {
-  final uid = _currentUser?.uid;
-  if (uid == null) return (activities: [], totalCalories: 0.0);
+  Future<({List<dynamic> activities, double totalCalories})>
+    getActivitiesAndCaloriesForDate(
+      DateTime date, {
+      bool forceRefresh = false,
+    }) async {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
 
-  if (!await _stravaService.isConnected()) {
-    return (activities: [], totalCalories: 0.0);
-  }
-
-  // ⚠️ Aligne bien la date sur la "local time" Strava
-  final dateKey = DateTime(date.year, date.month, date.day).toIso8601String().split('T')[0];
-  final docRef = _firestore.collection('users').doc(uid).collection('daily_calories').doc(dateKey);
-
-  try {
-    final allActivities = await _stravaService.getActivities();
-
-    // Filtrer sur la journée (Strava fournit start_date_local)
-    final List<Map<String, dynamic>> activitiesForDay = [];
-    for (final a in allActivities) {
-      final localDay = DateTime.parse(a["start_date_local"]).toIso8601String().split("T")[0];
-      if (localDay == dateKey) activitiesForDay.add(Map<String, dynamic>.from(a));
-    }
-
-    // 👉 Charger les détails pour avoir 'calories'
-    final details = await Future.wait(
-      activitiesForDay.map((a) => _stravaService.getActivityDetails(a['id'] as int)),
-      eagerError: false,
-    );
-
-    double totalCalories = 0.0;
-
-    for (var i = 0; i < activitiesForDay.length; i++) {
-      final d = details[i];
-      double cals = 0.0;
-
-      if (d != null) {
-        // 1) calories directes si dispo
-        cals = _parseDouble(d['calories']);
-
-        // 2) fallback vélo : 'kilojoules' ≈ kcal (1 kJ ≈ 0,239 kcal)
-        if (cals == 0.0) {
-          final kj = _parseDouble(d['kilojoules']);
-          if (kj > 0) cals = kj * 0.239006;
-        }
-
-        // (optionnel) Autres fallbacks : estimation course/marche
-        // ex: running ~ 1 kcal / kg / km si tu as le poids → à éviter sans poids fiable
+      if (date.isAfter(today)) {
+        return (activities: [], totalCalories: 0.0);
       }
 
-      // Mémoriser la calorie sur l'item pour ton UI
-      activitiesForDay[i]['calories'] = cals;
-      totalCalories += cals;
+      if (!await _stravaService.isConnected()) {
+        return (activities: [], totalCalories: 0.0);
+      }
+
+      final dateKey = DateService.formatStandard(date);
+
+      final caloriesRepo = _ref.read(dailyCaloriesRepositoryProvider);
+      final activitiesRepo = _ref.read(stravaActivitiesRepositoryProvider);
+
+      // 🔒 1️⃣ CACHE HIT → Hive
+      final cachedActivities = activitiesRepo.getForDate(dateKey);
+      final cachedCalories = caloriesRepo.getForDate(dateKey);
+
+      if (!forceRefresh &&
+        cachedActivities != null &&
+        activitiesRepo.isFresh(cachedActivities) &&
+        cachedCalories != null &&
+        caloriesRepo.isStravaFresh(cachedCalories)) {
+        return (
+          activities: cachedActivities.activities,
+          totalCalories: cachedCalories.strava,
+        );
+      }
+
+      // 🌐 2️⃣ CACHE MISS → réseau
+      final activities = await _stravaService.getActivitiesForDay(date);
+
+      if (activities.isEmpty) {
+        await caloriesRepo.upsert(
+          date: dateKey,
+          objectif: cachedCalories?.objectif ?? 0,
+          total: cachedCalories?.total ?? 0,
+          strava: 0.0,
+          stravaFetchedAt: DateTime.now(),
+        );
+
+        return (activities: [], totalCalories: 0.0);
+      }
+
+      // 🔍 détails + calories
+      final details = await Future.wait(
+        activities.map((a) {
+          final id = a['id'] as int;
+          return _stravaService.getActivityDetails(id);
+        }),
+      );
+
+      double totalCalories = 0.0;
+      final List<Map<String, dynamic>> enriched =
+          List<Map<String, dynamic>>.from(activities);
+
+      for (int i = 0; i < enriched.length; i++) {
+        double calories = _parseDouble(details[i]?['calories']);
+
+        if (calories == 0.0) {
+          final kj = _parseDouble(details[i]?['kilojoules']);
+          if (kj > 0) calories = kj * 0.239006;
+        }
+
+        enriched[i]['calories'] = calories;
+        totalCalories += calories;
+      }
+
+      // 💾 3️⃣ Sauvegarde Hive
+      await activitiesRepo.upsert(
+        dateKey: dateKey,
+        activities: enriched,
+      );
+
+      await caloriesRepo.upsert(
+        date: dateKey,
+        objectif: cachedCalories?.objectif ?? 0,
+        total: cachedCalories?.total ?? 0,
+        strava: totalCalories,
+        stravaFetchedAt: DateTime.now(),
+      );
+
+      await activitiesRepo.cleanup();
+      await caloriesRepo.cleanupOldEntries();
+
+      return (activities: enriched, totalCalories: totalCalories);
     }
 
-    await docRef.set({
-      'strava_totalCalories': totalCalories,
-      'strava_lastUpdated': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-
-    //print("✅ [StravaRepository] ${activitiesForDay.length} activités, ${totalCalories.toStringAsFixed(0)} kcal");
-    return (activities: activitiesForDay, totalCalories: totalCalories);
-  } catch (e) {
-    //print("❌ Erreur dans StravaRepository: $e");
-    return (activities: [], totalCalories: 0.0);
-  }
-}
 
 }
 
-// ✅ ON AJOUTE LA FONCTION D'ASSISTANCE ICI, EN DEHORS DE LA CLASSE
+
+// ---------------- UTILITIES ----------------
+
 double _parseDouble(dynamic value) {
   if (value == null) return 0.0;
   if (value is num) return value.toDouble();
   if (value is String) {
-    // On nettoie la chaîne pour ne garder que les chiffres et le point
-    final cleanedString = value.replaceAll(RegExp(r'[^0-9.]'), '');
-    return double.tryParse(cleanedString) ?? 0.0;
+    final cleaned = value.replaceAll(RegExp(r'[^0-9.]'), '');
+    return double.tryParse(cleaned) ?? 0.0;
   }
   return 0.0;
 }
 
+class StravaActivitiesRepository {
+  final Box<StravaDayActivities> _box;
 
-// --- Providers Riverpod ---
-final stravaServiceProvider = Provider((ref) => StravaService());
+  StravaActivitiesRepository(this._box);
+
+  StravaDayActivities? getForDate(String dateKey) {
+        try {
+      return _box.values.firstWhere((e) => e.date == dateKey);
+    } catch (_) {
+      return null;
+    }
+
+  }
+
+  bool isFresh(StravaDayActivities e) {
+    return e.fetchedAt.isAfter(
+      DateTime.now().subtract(const Duration(hours: 12)),
+    );
+  }
+
+  Future<void> upsert({
+    required String dateKey,
+    required List<Map<String, dynamic>> activities,
+  }) async {
+    final existing = getForDate(dateKey);
+
+    if (existing != null) {
+      existing.activities = activities;
+      existing.fetchedAt = DateTime.now();
+      await existing.save();
+      return;
+    }
+
+    await _box.add(
+      StravaDayActivities(
+        date: dateKey,
+        activities: activities,
+        fetchedAt: DateTime.now(),
+      ),
+    );
+  }
+
+  Future<void> cleanup({int keepDays = 7}) async {
+    final cutoff = DateTime.now().subtract(Duration(days: keepDays));
+
+    final keysToDelete = _box.values
+        .where((e) => e.fetchedAt.isBefore(cutoff))
+        .map((e) => e.key)
+        .toList();
+
+    if (keysToDelete.isNotEmpty) {
+      await _box.deleteAll(keysToDelete);
+    }
+  }
+}
+
+// ---------------- PROVIDERS ----------------
+
+final stravaServiceProvider = Provider<StravaServiceShared>((ref) {
+  if (kIsWeb) {
+    return StravaServiceWeb();
+  } else {
+    return StravaServiceMobile();
+  }
+});
 
 final stravaRepositoryProvider = Provider((ref) {
-  return StravaRepository(
-    ref.watch(stravaServiceProvider),
-    FirebaseFirestore.instance,
-    FirebaseAuth.instance,
-  );
+  final service = ref.watch(stravaServiceProvider);
+  return StravaRepository(service, ref);
 });
+
 final isStravaConnectedProvider = FutureProvider.autoDispose<bool>((ref) {
-  // On utilise le stravaServiceProvider déjà défini dans ce fichier
   return ref.watch(stravaServiceProvider).isConnected();
 });
+
+final stravaActivitiesRepositoryProvider =
+    Provider<StravaActivitiesRepository>((ref) {
+  final box = Hive.box<StravaDayActivities>('stravaActivities');
+  return StravaActivitiesRepository(box);
+});
+

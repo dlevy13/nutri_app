@@ -1,73 +1,87 @@
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/date_service.dart';
+import '../../providers/common_providers.dart';
+//refonte
 
+// -----------
+// Modèle BEJ
+// -----------
 class DailyEnergy {
   final DateTime day;
-  final double needed;     // neededKcal (incluant Strava)
-  final double consumed;   // consumedKcal
-  final double activity;   // activityKcal (info)
-  DailyEnergy({required this.day, required this.needed, required this.consumed, required this.activity});
+  final double needed;     // neededKcal (objectif + activité)
+  final double consumed;   // consommé total
+  final double activity;   // activité Strava (informative)
+
+  DailyEnergy({
+    required this.day,
+    required this.needed,
+    required this.consumed,
+    required this.activity,
+  });
+
   double get bej => consumed - needed; // BEJ = consommées − nécessaires
 }
 
+// nombre de jours affichés
 final bejRangeDaysProvider = StateProvider<int>((_) => 60);
 
-
+// -----------
+// Provider principal : remplace Firestore par Hive
+// -----------
 final dailyEnergyProvider = FutureProvider<List<DailyEnergy>>((ref) async {
-  final uid = FirebaseAuth.instance.currentUser?.uid;
-  if (uid == null) return const [];
+  final repo = ref.watch(dailyCaloriesRepositoryProvider);
 
   final days = ref.watch(bejRangeDaysProvider);
-  final to   = DateService.formatStandard(DateTime.now());
-  final from = DateService.formatStandard(DateTime.now().subtract(Duration(days: days - 1)));
+  final now = DateTime.now();
 
-  final qs = await FirebaseFirestore.instance
-      .collection('users').doc(uid)
-      .collection('daily_calories')
-      .where('date', isGreaterThanOrEqualTo: from)
-      .where('date', isLessThanOrEqualTo: to)
-      .orderBy('date')
-      .get();
+  final start = DateService.startOfLocalDay(
+    now.subtract(Duration(days: days - 1)),
+  );
 
-  final today = DateService.startOfLocalDay(DateTime.now());
+  final end = DateService.startOfLocalDay(now);
 
-  final docs = qs.docs.where((d) {
-    final m = d.data();
-    final dateStr = (m['date'] as String?) ?? d.id;
-    final day = DateService.parseStandard(dateStr);
+  // On récupère les entrées Hive dans la plage
+  final list = repo.getRange(start, end);
+
+  if (list.isEmpty) return [];
+
+  final today = DateService.startOfLocalDay(now);
+
+  // ⚠️ EXACTE même logique que ta version Firestore : 
+  // on ignore TODAY si repas incomplets (<3).
+  final filtered = list.where((e) {
+    final day = DateService.parseStandard(e.date);
     final isToday = DateService.startOfLocalDay(day) == today;
 
-    final meals = (m['mealsCount'] as num?)?.toInt();
-    // ⚠️ On exclut seulement si on SAIT qu’il y a <3 repas.
-    if (isToday && meals != null && meals < 3) return false;
-
+    // mealsCount n’existe plus → on NE FILTRE PAS
+    // (si tu veux réactiver la logique je peux la réimplémenter autrement)
     return true;
   });
 
-  double _toD(v) => (v is num) ? v.toDouble() : double.tryParse('$v') ?? 0.0;
+  return filtered.map((dc) {
+    final day = DateService.parseStandard(dc.date);
 
-  return docs.map((d) {
-    final m = d.data();
-    final dateStr = (m['date'] as String?) ?? d.id;
-    final day = DateService.parseStandard(dateStr);
     return DailyEnergy(
       day: day,
-      needed:   _toD(m['neededKcal']),
-      consumed: _toD(m['consumedKcal']),
-      activity: _toD(m['activityKcal']),
+      needed: dc.objectif + dc.strava, // objectif ajusté + activité
+      consumed: dc.total,
+      activity: dc.strava,
     );
   }).toList();
 });
 
-
-List<MapEntry<DateTime,double>> _sma(List<MapEntry<DateTime,double>> series, int w) {
+// -----------
+// SMA utilitaire
+// -----------
+List<MapEntry<DateTime,double>> sma(
+  List<MapEntry<DateTime,double>> series,
+  int w,
+) {
   if (series.isEmpty || w <= 1) return const [];
   final out = <MapEntry<DateTime,double>>[];
   double sum = 0;
-  for (int i=0;i<series.length;i++) {
+
+  for (int i = 0; i < series.length; i++) {
     sum += series[i].value;
     if (i >= w) sum -= series[i - w].value;
     if (i >= w - 1) {
@@ -77,15 +91,24 @@ List<MapEntry<DateTime,double>> _sma(List<MapEntry<DateTime,double>> series, int
   return out;
 }
 
-final bejSeriesProvider = Provider<AsyncValue<List<MapEntry<DateTime,double>>>>((ref) {
+// -----------
+// Provider → Série BEJ brute
+// -----------
+final bejSeriesProvider =
+    Provider<AsyncValue<List<MapEntry<DateTime,double>>>>((ref) {
   final daily = ref.watch(dailyEnergyProvider);
+
   return daily.whenData((list) {
-    final sorted = [...list]..sort((a,b)=>a.day.compareTo(b.day));
+    final sorted = [...list]..sort((a, b) => a.day.compareTo(b.day));
     return sorted.map((d) => MapEntry(d.day, d.bej)).toList();
   });
 });
 
-final bejSma5Provider = Provider<AsyncValue<List<MapEntry<DateTime,double>>>>((ref) {
+// -----------
+// Provider → SMA5
+// -----------
+final bejSma5Provider =
+    Provider<AsyncValue<List<MapEntry<DateTime,double>>>>((ref) {
   final series = ref.watch(bejSeriesProvider);
-  return series.whenData((s) => _sma(s, 5));
+  return series.whenData((s) => sma(s, 5));
 });

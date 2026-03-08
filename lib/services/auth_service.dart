@@ -1,90 +1,104 @@
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/app_user.dart';
-import 'fonctions.dart'; // pour saveUserToFirestore()
+import 'package:shared_preferences/shared_preferences.dart';
 import '../log.dart';
-
+//refonte
 class AuthService {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-
-  Future<UserCredential> registerUser({
-    required String email,
-    required String password,
+  // ------------------------------------------------------------
+  //  REGISTER LOCAL (inscription locale)
+  // ------------------------------------------------------------
+  Future<void> registerUser({
     required String prenom,
     required int age,
     required double taille,
     required double poids,
     required String activite,
+    required DateTime? birthDate,
+    String sexe = "Homme",
   }) async {
-    final credential = await _auth.createUserWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
+    final prefs = await SharedPreferences.getInstance();
 
-    final newUser = AppUser(
-      uid: credential.user!.uid,
-      prenom: prenom,
-      age: age,
-      taille: taille,
-      poids: poids,
-      activite: activite,
-      tdee: _calculateTDEE(poids, taille, age, activite),
-    );
+    await prefs.setString("prenom", prenom);
+    await prefs.setInt("age", age);
+    await prefs.setDouble("taille", taille);
+    await prefs.setDouble("poids", poids);
+    await prefs.setString("activite", activite);
+    await prefs.setString("sexe", sexe);
 
-    await saveUserToFirestore(newUser);
-
-    return credential;
-  }
-
-  double _calculateTDEE(double poids, double taille, int age, String activite) {
-    double bmr = 10 * poids + 6.25 * taille - 5 * age + 5; // formule de Mifflin
-    switch (activite) {
-        case "Sédentaire":
-          return bmr * 1.4;
-        case "Modéré":
-          return bmr * 1.6;
-        case "Actif":
-          return bmr * 1.8;
-        case "Très actif":
-          return bmr * 2.0;
-        default:
-          return bmr * 1.5;
+    if (birthDate != null) {
+      await prefs.setString("birthDate", birthDate.toIso8601String());
     }
+
+    // Calcul automatique du TDEE
+    final tdee = _calculateTDEE(poids, taille, age, sexe, activite);
+    await prefs.setDouble("tdee", tdee);
+
+    logger.d("📝 Profil utilisateur initial enregistré localement.");
   }
 
+  // ------------------------------------------------------------
+  //  UPDATE PROFIL LOCAL
+  // ------------------------------------------------------------
   Future<void> updateUserProfileData({
-      required double poids,
-      required int age,
-      required String sexe,
-      required double taille,
-      required String activite,
-    }) async {
-      final uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid == null) return;
+    String? prenom,
+    int? age,
+    double? taille,
+    double? poids,
+    String? sexe,
+    String? activite,
+    DateTime? birthDate,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
 
-      final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
-
-      await userRef.set({
-        'poids': poids,
-        'age': age,
-        'sexe': sexe,
-        'taille': taille,
-        'activite': activite,
-      }, SetOptions(merge: true));
+    if (prenom != null)   await prefs.setString("prenom", prenom);
+    if (age != null)      await prefs.setInt("age", age);
+    if (taille != null)   await prefs.setDouble("taille", taille);
+    if (poids != null)    await prefs.setDouble("poids", poids);
+    if (sexe != null)     await prefs.setString("sexe", sexe);
+    if (activite != null) await prefs.setString("activite", activite);
+    if (birthDate != null) {
+      await prefs.setString("birthDate", birthDate.toIso8601String());
     }
-Future<UserCredential?> signIn(String email, String password) async {
-  try {
-    logger.d("📌 Tentative connexion : $email");
-    final credential = await _auth.signInWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
-    logger.d("✅ Connexion réussie UID: ${credential.user!.uid}");
-    return credential;
-  } catch (e) {
-    logger.d("❌ Erreur connexion : $e");
-    return null;
-  }
-}
 
+    // Recalcul auto du TDEE si poids/taille/age/sexe/activite changent
+    final currentPoids    = prefs.getDouble("poids") ?? 70.0;
+    final currentTaille   = prefs.getDouble("taille") ?? 175.0;
+    final currentAge      = prefs.getInt("age") ?? 30;
+    final currentSexe     = prefs.getString("sexe") ?? "Homme";
+    final currentActivite = prefs.getString("activite") ?? "Modéré";
+
+    final tdee = _calculateTDEE(
+      currentPoids,
+      currentTaille,
+      currentAge,
+      currentSexe,
+      currentActivite,
+    );
+
+    await prefs.setDouble("tdee", tdee);
+
+    logger.d("🔄 Profil utilisateur mis à jour localement.");
+  }
+
+  // ------------------------------------------------------------
+  //  TDEE
+  // ------------------------------------------------------------
+  double _calculateTDEE(
+    double poids,
+    double taille,
+    int age,
+    String sexe,
+    String activite,
+  ) {
+    // Mifflin-St Jeor
+    double bmr = sexe == 'Femme'
+        ? 10 * poids + 6.25 * taille - 5 * age - 161
+        : 10 * poids + 6.25 * taille - 5 * age + 5;
+
+    switch (activite) {
+      case "Sédentaire":  return bmr * 1.4;
+      case "Modéré":      return bmr * 1.6;
+      case "Actif":       return bmr * 1.8;
+      case "Très actif":  return bmr * 2.0;
+      default:            return bmr * 1.5;
+    }
+  }
 }

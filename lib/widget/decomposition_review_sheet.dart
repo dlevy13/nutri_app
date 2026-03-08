@@ -89,6 +89,7 @@ class _DecompositionReviewSheetState extends State<DecompositionReviewSheet> {
                       carbs: it.carbsPer100,
                       fat: it.fatPer100,
                       fibers: it.fibersPer100,
+                      sucres: it.sucresPer100,
                       saturatedFat: it.saturatedFatPer100,
                       polyunsaturatedFat: it.polyunsaturatedFatPer100,
                       monounsaturatedFat: it.monounsaturatedFatPer100,

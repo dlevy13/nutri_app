@@ -1,133 +1,168 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
 import 'package:icalendar_parser/icalendar_parser.dart';
-import '../log.dart'; // garde ton logger
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/foundation.dart'; // kIsWeb
+import 'package:http/http.dart' as http;
 
+import '../log.dart';
+//refonte
+final SupabaseClient supabase = Supabase.instance.client;
 class GarminCalendarService {
   static const String _cacheKey = 'garmin_calendar_cache';
+  static const String _edgeUrl =
+    'https://jasofcbxjgnuydohlyzk.supabase.co/functions/v1/garminCalendarV2';
+
   static const String _lastFetchKey = 'garmin_last_fetch';
-  static const String _icalUrl = 'https://us-central1-nutriapp-4ea20.cloudfunctions.net/garminCalendarV2';
+ static const String supabaseAnonKey =
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imphc29mY2J4amdudXlkb2hseXprIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4MzMzNTAsImV4cCI6MjA4MjQwOTM1MH0.2_EJl6zbR-aY2ofpPIWqEylZYFcKDWX8lmGjpePzj9A';
 
+  /// ---------------------------------------------------------------------------
+  /// Charge le calendrier Garmin :
+  /// - essaie d'abord le cache (max 12h)
+  /// - sinon télécharge directement depuis le lien Garmin enregistré
+  /// ---------------------------------------------------------------------------
+  static Future<List<Map<String, dynamic>>> loadCalendar({
+  bool forceRefresh = false,
+}) async {
+  final prefs = await SharedPreferences.getInstance();
 
-  /// ✅ Récupère l’URL Garmin sécurisée depuis Firestore
-  static Future<String?> _getGarminLink() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return null;
+  final cached = prefs.getString(_cacheKey);
+  final lastFetchStr = prefs.getString(_lastFetchKey);
+  final lastFetch =
+      lastFetchStr != null ? DateTime.tryParse(lastFetchStr) : null;
 
-    final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-    if (!doc.exists) return null;
+  final now = DateTime.now();
+  final shouldRefresh =
+      forceRefresh || lastFetch == null || now.difference(lastFetch).inHours > 12;
 
-    final link = doc['garminLink'] as String?;
-    if (link != null && link.startsWith('https://') && link.contains('garmin.com')) {
-      return doc.data()?['garminLink'];
-    }
-    return null;
+  if (cached != null && !shouldRefresh) {
+    logger.d('📄 Lecture calendrier Garmin depuis cache local');
+    return _parseCalendarData(cached);
   }
 
-  /// ✅ Version mise à jour de loadCalendar : récupère lien Firestore + cache existant
-  static Future<List<Map<String, dynamic>>> loadCalendar({bool forceRefresh = false}) async {
-    final prefs = await SharedPreferences.getInstance();
-    final cachedData = prefs.getString(_cacheKey);
-    final now = DateTime.now();
-    final lastFetch = DateTime.tryParse(prefs.getString(_lastFetchKey) ?? '');
+  try {
+    logger.d("📡 Téléchargement calendrier Garmin via Supabase");
 
-    final shouldRefresh = forceRefresh || lastFetch == null || now.difference(lastFetch).inHours > 12;
+    String icsString;
 
-    if (cachedData != null && !shouldRefresh) {
-      return _parseCalendarData(cachedData);
-    }
+// 🌐 WEB / PWA → appel HTTP direct avec Authorization
+// 🌐 WEB / PWA → appel HTTP direct
+if (kIsWeb) {
+  final res = await http.post(
+    Uri.parse(_edgeUrl),
+    headers: {
+      'apikey': supabaseAnonKey,
+      'Authorization': 'Bearer $supabaseAnonKey',
+      'Content-Type': 'application/json',
+    },
+  );
 
-    final garminUrl = await _getGarminLink();
-    if (garminUrl == null) {
-      logger.d('❌ Aucun lien Garmin valide trouvé dans Firestore');
-      return [];
-    }
-
-    try {
-      final garminLink = await _getGarminLink();
-      if (garminLink == null || garminLink.isEmpty) {
-        logger.d('⚠️ Aucun lien Garmin enregistré, tentative avec proxy sans paramètre');
-      }
-
-      // ✅ Construire URL avec le lien encodé
-      final requestUrl = garminLink != null && garminLink.isNotEmpty
-          ? '$_icalUrl?url=${Uri.encodeComponent(garminLink)}'
-          : _icalUrl;
-
-      logger.d('📡 Téléchargement calendrier via proxy: $requestUrl');
-
-      final response = await http.get(Uri.parse(requestUrl));
-      if (response.statusCode == 200) {
-        await prefs.setString(_cacheKey, response.body);
-        await prefs.setString(_lastFetchKey, now.toIso8601String());
-        logger.d('✅ Calendrier téléchargé (${response.body.length} caractères)');
-        return _parseCalendarData(response.body);
-      } else {
-        logger.d('❌ Erreur HTTP ${response.statusCode}');
-        return [];
-      }
-    } catch (e) {
-      logger.d('❗ Erreur lors de la requête : $e');
-      return [];
-    }
+  if (res.statusCode != 200) {
+    logger.d("❌ Garmin Web error status=${res.statusCode}");
+    return [];
   }
 
-  /// ✅ Parsing identique à avant
+  icsString = res.body;
+}
+
+
+// 📱 MOBILE → Supabase SDK normal
+else {
+  final res =
+      await Supabase.instance.client.functions.invoke('garminCalendarV2');
+
+  if (res.status != 200) {
+    logger.d("❌ Supabase error status=${res.status}");
+    return [];
+  }
+
+  icsString = res.data as String;
+}
+
+
+    // Cache local
+    await prefs.setString(_cacheKey, icsString);
+    await prefs.setString(_lastFetchKey, now.toIso8601String());
+
+    logger.d("✅ Calendrier Garmin chargé (${icsString.length} caractères)");
+
+    return _parseCalendarData(icsString);
+  } catch (e) {
+    logger.d("❗ Erreur téléchargement calendrier : $e");
+    return [];
+  }
+}
+
+
+
+  /// ---------------------------------------------------------------------------
+  /// PARSING ICS → événements
+  /// ---------------------------------------------------------------------------
   static List<Map<String, dynamic>> _parseCalendarData(String icsString) {
     final calendar = ICalendar.fromString(icsString);
 
     if (calendar.data.isEmpty) {
-      logger.d('⚠️ Aucun événement trouvé dans le .ics');
+      logger.d("⚠️ ICS vide ou invalide");
       return [];
     }
 
     final events = calendar.data
         .where((e) => e['type'] == 'VEVENT')
         .map((e) {
-          final summary = e['summary']?.toString() ?? 'Sans titre';
-          final dtstart = e['dtstart'];
-          final dtend = e['dtend'];
+          final summary = e['summary']?.toString() ?? "Sans titre";
 
-          final DateTime? start = dtstart is IcsDateTime
-              ? _convertIcsDateTime(dtstart)
-              : _parseRawDate(dtstart?.toString());
-          final DateTime? end = dtend is IcsDateTime
-              ? _convertIcsDateTime(dtend)
-              : _parseRawDate(dtend?.toString());
+          final dtStart = e['dtstart'];
+          final dtEnd = e['dtend'];
 
-          return {'summary': summary, 'start': start, 'end': end};
+          DateTime? start;
+          DateTime? end;
+
+          if (dtStart is IcsDateTime) {
+            start = _parseRawDate(dtStart.dt);
+          } else {
+            start = _parseRawDate(dtStart?.toString());
+          }
+
+          if (dtEnd is IcsDateTime) {
+            end = _parseRawDate(dtEnd.dt);
+          } else {
+            end = _parseRawDate(dtEnd?.toString());
+          }
+
+          return {
+            "summary": summary,
+            "start": start,
+            "end": end,
+          };
         })
-        .where((e) => e['start'] != null)
+        .where((e) => e["start"] != null)
         .toList();
 
-    logger.d('📅 ${events.length} événements parsés');
-    for (var e in events.take(5)) {
-      logger.d("• ${e['summary']} | ${e['start']} → ${e['end']}");
-    }
+    logger.d("📅 ${events.length} événements Garmin parsés");
+
     return events;
   }
 
-  static DateTime? _convertIcsDateTime(IcsDateTime icsDateTime) {
-    final raw = icsDateTime.dt;
-    return _parseRawDate(raw);
-  }
-
+  /// ---------------------------------------------------------------------------
+  /// PARSE RAW DATE FROM ICS
+  /// ---------------------------------------------------------------------------
   static DateTime? _parseRawDate(String? raw) {
     if (raw == null) return null;
+
     try {
-      if (raw.contains('T')) {
-        return DateTime.parse(raw);
-      } else if (RegExp(r'^\d{8}$').hasMatch(raw)) {
-        final year = int.parse(raw.substring(0, 4));
-        final month = int.parse(raw.substring(4, 6));
-        final day = int.parse(raw.substring(6, 8));
-        return DateTime(year, month, day);
+      if (raw.contains("T")) return DateTime.parse(raw);
+
+      // Format AAAAMMJJ
+      if (RegExp(r'^\d{8}$').hasMatch(raw)) {
+        final y = int.parse(raw.substring(0, 4));
+        final m = int.parse(raw.substring(4, 6));
+        final d = int.parse(raw.substring(6, 8));
+        return DateTime(y, m, d);
       }
     } catch (e) {
-      logger.d("Erreur parsing IcsDateTime: $raw");
+      logger.d("Erreur parsing date ICS : $raw");
     }
+
     return null;
   }
 }

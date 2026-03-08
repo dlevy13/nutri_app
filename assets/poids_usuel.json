@@ -292,5 +292,677 @@
     "poids": 30,
     "unite": "pièce",
     "commentaire": "pain + garniture légère"
+  },
+  {
+    "aliment": "Velouté de légumes",
+    "groupe": "plat cuisiné",
+    "poids": 250,
+    "unite": "bol",
+    "commentaire": "portion individuelle | 2 variantes fusionnées"
+  },
+  {
+    "aliment": "soupe",
+    "groupe": "plat cuisiné",
+    "poids": 250,
+    "unite": "bol",
+    "commentaire": "portion individuelle"
+  },
+  {
+    "aliment": "Poulet pilon cru",
+    "groupe": "viande",
+    "poids": 90,
+    "unite": "pièce",
+    "commentaire": "taille moyenne | 2 variantes fusionnées"
+  },
+  {
+    "aliment": "tomates farcies",
+    "groupe": "plat cuisiné",
+    "poids": 200,
+    "unite": "plat",
+    "commentaire": ""
+  },
+  {
+    "aliment": "Chocolat",
+    "groupe": "chocolat",
+    "poids": 10,
+    "unite": "portion",
+    "commentaire": "standard"
+  },
+  {
+    "aliment": "Poulet viande crue",
+    "groupe": "viande",
+    "poids": 150,
+    "unite": "portion",
+    "commentaire": "filet moyen | 2 variantes fusionnées"
+  },
+  {
+    "aliment": "Sésame",
+    "groupe": "graines",
+    "poids": 10,
+    "unite": "càs",
+    "commentaire": "1 cuillère à soupe | 2 variantes fusionnées"
+  },
+  {
+    "aliment": "Chili con carne préemballé",
+    "groupe": "plat cuisiné",
+    "poids": 300,
+    "unite": "barquette",
+    "commentaire": "portion individuelle | 2 variantes fusionnées"
+  },
+  {
+    "aliment": "Salade de fruits crue",
+    "groupe": "fruit",
+    "poids": 200,
+    "unite": "bol",
+    "commentaire": "portion | 2 variantes fusionnées"
+  },
+  {
+    "aliment": "Quiche lorraine",
+    "groupe": "plat cuisiné",
+    "poids": 120,
+    "unite": "part",
+    "commentaire": "1/6 de quiche standard | 2 variantes fusionnées"
+  },
+  {
+    "aliment": "Biscotte classique",
+    "groupe": "céréales",
+    "poids": 6,
+    "unite": "pièce",
+    "commentaire": "standard | 2 variantes fusionnées"
+  },
+  {
+    "aliment": "Raisin cru",
+    "groupe": "fruit",
+    "poids": 150,
+    "unite": "grappe",
+    "commentaire": "portion moyenne | 3 variantes fusionnées"
+  },
+  {
+    "aliment": "Mangue pulpe crue",
+    "groupe": "fruit",
+    "poids": 200,
+    "unite": "pièce",
+    "commentaire": "sans noyau ni peau | 2 variantes fusionnées"
+  },
+  {
+    "aliment": "Salade César au poulet",
+    "groupe": "plat cuisiné",
+    "poids": 300,
+    "unite": "barquette",
+    "commentaire": "portion standard"
+  },
+  {
+    "aliment": "Pêche jaune pulpe crue",
+    "groupe": "fruit",
+    "poids": 150,
+    "unite": "pièce",
+    "commentaire": "taille moyenne | 2 variantes fusionnées"
+  },
+  {
+    "aliment": "Agneau côte filet grillée/poêlée",
+    "groupe": "viande",
+    "poids": 120,
+    "unite": "pièce",
+    "commentaire": "côte moyenne | 2 variantes fusionnées"
+  },
+  {
+    "aliment": "Gouda",
+    "groupe": "fromage",
+    "poids": 30,
+    "unite": "portion",
+    "commentaire": "tranche"
+  },
+  {
+    "aliment": "Melon",
+    "groupe": "fruit",
+    "poids": 150,
+    "unite": "quart",
+    "commentaire": "1/4 de melon | 2 variantes fusionnées"
+  },
+  {
+    "aliment": "Burata",
+    "groupe": "fromage",
+    "poids": 125,
+    "unite": "pièce",
+    "commentaire": "standard | 2 variantes fusionnées"
+  },
+  {
+    "aliment": "Gâteau",
+    "groupe": "pâtisserie",
+    "poids": 100,
+    "unite": "part",
+    "commentaire": "portion standard"
+  },
+  {
+    "aliment": "Petits pois crus",
+    "groupe": "légume",
+    "poids": 80,
+    "unite": "portion",
+    "commentaire": "1 petit bol | 2 variantes fusionnées"
+  },
+  {
+    "aliment": "Actimel",
+    "groupe": "produit laitier",
+    "poids": 100,
+    "unite": "bouteille",
+    "commentaire": "format standard | 2 variantes fusionnées"
+  },
+  {
+    "aliment": "Kinder DUO",
+    "groupe": "confiserie",
+    "poids": 20,
+    "unite": "pièce",
+    "commentaire": "barre individuelle | 2 variantes fusionnées"
+  },
+  {
+    "aliment": "Chia",
+    "groupe": "graines",
+    "poids": 10,
+    "unite": "càs",
+    "commentaire": "1 cuillère à soupe"
+  },
+  {
+    "aliment": "beignets",
+    "groupe": "pâtisserie",
+    "poids": 30,
+    "unite": "pièce",
+    "commentaire": "standard"
+  },
+  {
+    "aliment": "Vin rosé",
+    "groupe": "boisson",
+    "poids": 150,
+    "unite": "verre",
+    "commentaire": "verre standard | 2 variantes fusionnées"
+  },
+  {
+    "aliment": "petit suisse",
+    "groupe": "produit laitier",
+    "poids": 60,
+    "unite": "pot",
+    "commentaire": "standard"
+  },
+  {
+    "aliment": "Jambon cru",
+    "groupe": "charcuterie",
+    "poids": 40,
+    "unite": "portion",
+    "commentaire": "2 tranches fines | 2 variantes fusionnées"
+  },
+  {
+    "aliment": "Saucisson",
+    "groupe": "charcuterie",
+    "poids": 25,
+    "unite": "tranche",
+    "commentaire": "moyenne"
+  },
+  {
+    "aliment": "Ravioli",
+    "groupe": "plat cuisiné",
+    "poids": 250,
+    "unite": "portion",
+    "commentaire": "assiette"
+  },
+  {
+    "aliment": "Lasagnes",
+    "groupe": "plat cuisiné",
+    "poids": 300,
+    "unite": "portion",
+    "commentaire": "assiette standard"
+  },
+  {
+    "aliment": "Pâté",
+    "groupe": "charcuterie",
+    "poids": 60,
+    "unite": "tranche",
+    "commentaire": "portion moyenne"
+  },
+  {
+    "aliment": "Punch Planteur",
+    "groupe": "boisson",
+    "poids": 150,
+    "unite": "verre",
+    "commentaire": "portion cocktail"
+  },
+  {
+    "aliment": "Penne",
+    "groupe": "pâtes",
+    "poids": 80,
+    "unite": "portion",
+    "commentaire": "crues"
+  },
+  {
+    "aliment": "Boeuf bourguignon",
+    "groupe": "plat cuisiné",
+    "poids": 300,
+    "unite": "portion",
+    "commentaire": "assiette standard | 2 variantes fusionnées"
+  },
+  {
+    "aliment": "Tarte poireaux",
+    "groupe": "plat cuisiné",
+    "poids": 120,
+    "unite": "part",
+    "commentaire": "1/6 de tarte standard | 2 variantes fusionnées"
+  },
+  {
+    "aliment": "Filets de Sardines",
+    "groupe": "poisson",
+    "poids": 100,
+    "unite": "portion",
+    "commentaire": "2 petits filets"
+  },
+  {
+    "aliment": "Pompot",
+    "groupe": "fruit",
+    "poids": 90,
+    "unite": "gourde",
+    "commentaire": "format individuel | 2 variantes fusionnées"
+  },
+  {
+    "aliment": "Fitness Nature Céréales complètes",
+    "groupe": "céréales",
+    "poids": 30,
+    "unite": "portion",
+    "commentaire": "bol standard | 2 variantes fusionnées"
+  },
+  {
+    "aliment": "PETITS FOURS",
+    "groupe": "pâtisserie",
+    "poids": 25,
+    "unite": "pièce",
+    "commentaire": "taille moyenne | 2 variantes fusionnées"
+  },
+  {
+    "aliment": "Nouilles asiatiques cuites aromatisées",
+    "groupe": "féculent",
+    "poids": 200,
+    "unite": "assiette",
+    "commentaire": "portion standard"
+  },
+  {
+    "aliment": "Courgettes cuisinées à la provençale",
+    "groupe": "légume",
+    "poids": 150,
+    "unite": "portion",
+    "commentaire": "accompagnement"
+  },
+  {
+    "aliment": "Boeuf filet cru",
+    "groupe": "viande",
+    "poids": 150,
+    "unite": "portion",
+    "commentaire": "filet moyen"
+  },
+  {
+    "aliment": "4 tomates farcies",
+    "groupe": "plat cuisiné",
+    "poids": 200,
+    "unite": "plat",
+    "commentaire": "4 pièces de 200 g"
+  },
+  {
+    "aliment": "LINDT EXCELLENCE 100% COCOA",
+    "groupe": "chocolat",
+    "poids": 10,
+    "unite": "carré",
+    "commentaire": "format standard"
+  },
+  {
+    "aliment": "Mélange tonus",
+    "groupe": "fruits secs",
+    "poids": 30,
+    "unite": "poignée",
+    "commentaire": "mélange de noix et fruits secs | 2 variantes fusionnées"
+  },
+  {
+    "aliment": "Activia Vanille",
+    "groupe": "produit laitier",
+    "poids": 125,
+    "unite": "pot",
+    "commentaire": "format classique"
+  },
+  {
+    "aliment": "Excellence Noir Puissant 85% Cacao",
+    "groupe": "chocolat",
+    "poids": 10,
+    "unite": "carré",
+    "commentaire": "format standard | 2 variantes fusionnées"
+  },
+  {
+    "aliment": "Aubergines cuisinées à la provençale",
+    "groupe": "légume",
+    "poids": 150,
+    "unite": "portion",
+    "commentaire": "accompagnement"
+  },
+  {
+    "aliment": "La Laitière crème aux oeufs",
+    "groupe": "dessert",
+    "poids": 100,
+    "unite": "pot",
+    "commentaire": "format standard"
+  },
+  {
+    "aliment": "Skyr nature 0%",
+    "groupe": "produit laitier",
+    "poids": 150,
+    "unite": "pot",
+    "commentaire": "format courant"
+  },
+  {
+    "aliment": "Salade César au poulet (salade verte fromage croûtons sauce) préemballée",
+    "groupe": "plat cuisiné",
+    "poids": 300,
+    "unite": "barquette",
+    "commentaire": "portion standard"
+  },
+  {
+    "aliment": "Poluet",
+    "groupe": "viande",
+    "poids": 150,
+    "unite": "portion",
+    "commentaire": "probable doublon 'Poulet'"
+  },
+  {
+    "aliment": "Poulet cuisse viande et peau rôtie/cuite au four",
+    "groupe": "viande",
+    "poids": 200,
+    "unite": "pièce",
+    "commentaire": "cuisse moyenne cuite"
+  },
+  {
+    "aliment": "Queso Gouda",
+    "groupe": "fromage",
+    "poids": 30,
+    "unite": "portion",
+    "commentaire": "tranche"
+  },
+  {
+    "aliment": "Melon cantaloup (par ex.: Charentais de Cavaillon) pulpe cru",
+    "groupe": "fruit",
+    "poids": 150,
+    "unite": "quart",
+    "commentaire": "1/4 de melon"
+  },
+  {
+    "aliment": "Salade de betterave avec sauce préemballée",
+    "groupe": "plat cuisiné",
+    "poids": 80,
+    "unite": "portion",
+    "commentaire": "portion"
+  },
+  {
+    "aliment": "Gâteau (aliment moyen)",
+    "groupe": "pâtisserie",
+    "poids": 100,
+    "unite": "part",
+    "commentaire": "portion standard | 2 variantes fusionnées"
+  },
+  {
+    "aliment": "Tiramisu préemballé",
+    "groupe": "dessert",
+    "poids": 100,
+    "unite": "portion",
+    "commentaire": "barquette individuelle"
+  },
+  {
+    "aliment": "Merguez crue",
+    "groupe": "charcuterie",
+    "poids": 55,
+    "unite": "pièce",
+    "commentaire": "taille moyenne"
+  },
+  {
+    "aliment": "Bière blanche",
+    "groupe": "boisson",
+    "poids": 250,
+    "unite": "verre",
+    "commentaire": "25 cl"
+  },
+  {
+    "aliment": "Organic 70% Dark Chocolate Bar",
+    "groupe": "chocolat",
+    "poids": 100,
+    "unite": "tablette",
+    "commentaire": "format standard"
+  },
+  {
+    "aliment": "Haricots Verts extra-fins",
+    "groupe": "légume",
+    "poids": 150,
+    "unite": "portion",
+    "commentaire": "accompagnement cuit"
+  },
+  {
+    "aliment": "Chia graine séchée",
+    "groupe": "graines",
+    "poids": 10,
+    "unite": "càs",
+    "commentaire": "1 cuillère à soupe"
+  },
+  {
+    "aliment": "Gâteau marbré prémballé",
+    "groupe": "pâtisserie",
+    "poids": 40,
+    "unite": "portion",
+    "commentaire": "mini cake individuel"
+  },
+  {
+    "aliment": "Pastis",
+    "groupe": "boisson",
+    "poids": 30,
+    "unite": "verre",
+    "commentaire": "dose standard 3 cl"
+  },
+  {
+    "aliment": "Merguez pur boeuf crue",
+    "groupe": "charcuterie",
+    "poids": 55,
+    "unite": "pièce",
+    "commentaire": "taille moyenne"
+  },
+  {
+    "aliment": "Mini beignets assortis",
+    "groupe": "pâtisserie",
+    "poids": 30,
+    "unite": "pièce",
+    "commentaire": "standard"
+  },
+  {
+    "aliment": "Minestrone Soup",
+    "groupe": "plat cuisiné",
+    "poids": 300,
+    "unite": "bol",
+    "commentaire": "portion"
+  },
+  {
+    "aliment": "BRANDADE DE MORUE",
+    "groupe": "plat cuisiné",
+    "poids": 200,
+    "unite": "portion",
+    "commentaire": "servie chaude"
+  },
+  {
+    "aliment": "Le petit suisse gervais nature 9,5 % 60 g x 12",
+    "groupe": "produit laitier",
+    "poids": 60,
+    "unite": "pot",
+    "commentaire": "format individuel"
+  },
+  {
+    "aliment": "Endives spéciales salade",
+    "groupe": "légume",
+    "poids": 80,
+    "unite": "portion",
+    "commentaire": "cru, émincé"
+  },
+  {
+    "aliment": "Chili sin carne",
+    "groupe": "plat cuisiné",
+    "poids": 300,
+    "unite": "barquette",
+    "commentaire": "portion standard"
+  },
+  {
+    "aliment": "Dark chocolate",
+    "groupe": "chocolat",
+    "poids": 100,
+    "unite": "tablette",
+    "commentaire": "générique"
+  },
+  {
+    "aliment": "Veau viande cuite (aliment moyen)",
+    "groupe": "viande",
+    "poids": 150,
+    "unite": "portion",
+    "commentaire": "cuit"
+  },
+  {
+    "aliment": "Saucisson cuit pur porc",
+    "groupe": "charcuterie",
+    "poids": 25,
+    "unite": "tranche",
+    "commentaire": "moyenne"
+  },
+  {
+    "aliment": "Ravioli au tofu, tomates, basilic",
+    "groupe": "plat cuisiné",
+    "poids": 250,
+    "unite": "portion",
+    "commentaire": "assiette"
+  },
+  {
+    "aliment": "Lasagnes ou cannelloni à la viande (bolognaise)",
+    "groupe": "plat cuisiné",
+    "poids": 300,
+    "unite": "portion",
+    "commentaire": "assiette standard"
+  },
+  {
+    "aliment": "Gerblé - Sugar Free Coconut Cookie, 132g (4.7oz)",
+    "groupe": "biscuits",
+    "poids": 30,
+    "unite": "portion",
+    "commentaire": "~2 biscuits"
+  },
+  {
+    "aliment": "Punch balls",
+    "groupe": "confiserie",
+    "poids": 15,
+    "unite": "pièce",
+    "commentaire": "boule moyenne"
+  },
+  {
+    "aliment": "Emprésuré chocolat bio",
+    "groupe": "dessert",
+    "poids": 125,
+    "unite": "pot",
+    "commentaire": "type yaourt dessert"
+  },
+  {
+    "aliment": "Pâté en croûte",
+    "groupe": "charcuterie",
+    "poids": 60,
+    "unite": "tranche",
+    "commentaire": "portion moyenne"
+  },
+  {
+    "aliment": "Salade Endives",
+    "groupe": "légume",
+    "poids": 200,
+    "unite": "bol",
+    "commentaire": "salade prête à consommer"
+  },
+  {
+    "aliment": "Navettes de Provence",
+    "groupe": "biscuits",
+    "poids": 12,
+    "unite": "pièce",
+    "commentaire": "biscuit sec"
+  },
+  {
+    "aliment": "Punch Planteur au Rhum Blanc et au Rhum Vieux",
+    "groupe": "boisson",
+    "poids": 150,
+    "unite": "verre",
+    "commentaire": "portion cocktail"
+  },
+  {
+    "aliment": "Barilla Penne Rigate Fullkorn 500g",
+    "groupe": "pâtes",
+    "poids": 80,
+    "unite": "portion",
+    "commentaire": "crues"
+  },
+  {
+    "aliment": "Figue & son",
+    "groupe": "dessert",
+    "poids": 125,
+    "unite": "pot",
+    "commentaire": "type yaourt figue + son"
+  },
+  {
+    "aliment": "Colin d'Alaska à la bordelaise",
+    "groupe": "poisson",
+    "poids": 130,
+    "unite": "portion",
+    "commentaire": "1 filet pané"
+  },
+  {
+    "aliment": "Gâteau marbré au chocolat",
+    "groupe": "pâtisserie",
+    "poids": 100,
+    "unite": "part",
+    "commentaire": "portion standard"
+  },
+  {
+    "aliment": "Filets de Sardines Grillés",
+    "groupe": "poisson",
+    "poids": 100,
+    "unite": "portion",
+    "commentaire": "2 petits filets"
+  },
+  {
+    "aliment": "Tomme ou tome de vache",
+    "groupe": "fromage",
+    "poids": 30,
+    "unite": "portion",
+    "commentaire": "tranche"
+  },
+  {
+    "aliment": "Brie sans précision",
+    "groupe": "fromage",
+    "poids": 30,
+    "unite": "portion",
+    "commentaire": "tranche"
+  },
+  {
+    "aliment": "Salade de pommes de terre fait maison",
+    "groupe": "plat cuisiné",
+    "poids": 200,
+    "unite": "portion",
+    "commentaire": "accompagnement"
+  },
+  {
+    "aliment": "Flocons d'avoine complets",
+    "groupe": "céréales",
+    "poids": 40,
+    "unite": "portion",
+    "commentaire": "sec, pour porridge"
+  },
+  {
+    "aliment": "Savane",
+    "groupe": "pâtisserie",
+    "poids": 30,
+    "unite": "tranche",
+    "commentaire": "cake marbré individuel"
+  },
+  {
+    "aliment": "Pêche",
+    "groupe": "fruit",
+    "poids": 150,
+    "unite": "pièce",
+    "commentaire": "taille moyenne"
   }
 ]

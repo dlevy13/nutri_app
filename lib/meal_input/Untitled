@@ -1,0 +1,66 @@
+Future<void> onDecompose() async {
+  if (_isDecomposing) return;
+
+  final description = _decompCtrl.text.trim();
+  if (description.isEmpty) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Écris d’abord la description du plat.")),
+      );
+    }
+    return;
+  }
+
+  setState(() {
+    _isDecomposing = true;
+  });
+
+  try {
+    final data = await _decompSvc.decompose(description);
+
+    final items = (data["ingredients"] as List)
+        .map((e) => ProposedIngredient.fromJson(e as Map<String, dynamic>))
+        .toList();
+
+    if (!mounted) return;
+
+    final provider = mealInputProvider((
+      mealType: widget.mealType,
+      selectedDate: widget.selectedDate,
+      fullTimestamp: widget.fullTimestamp,
+    ));
+    final notifier = ref.read(provider.notifier);
+    final selectedMealType = ref.read(provider).selectedMealType;
+
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => DecompositionReviewSheet(
+        items: items,
+        mealType: selectedMealType,
+        notifier: notifier,
+      ),
+    );
+
+    if (saved == true) {
+      ref.invalidate(mealInputProvider((
+        mealType: widget.mealType,
+        selectedDate: widget.selectedDate,
+        fullTimestamp: widget.fullTimestamp,
+      )));
+      _decompCtrl.clear();
+    }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Erreur décomposition : $e")),
+      );
+    }
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isDecomposing = false;
+      });
+    }
+  }
+}

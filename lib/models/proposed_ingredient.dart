@@ -9,6 +9,7 @@ class ProposedIngredient {
   final double fatPer100;
   // ✅ AJOUT : Nouveaux champs de nutriments /100g
   final double fibersPer100;
+   final double sucresPer100;
   final double saturatedFatPer100;
   final double polyunsaturatedFatPer100;
   final double monounsaturatedFatPer100;
@@ -29,7 +30,7 @@ class ProposedIngredient {
     required this.proteinPer100,
     required this.carbsPer100,
     required this.fatPer100,
-    // ✅ AJOUT : Nouveaux paramètres au constructeur
+    required this.sucresPer100,
     required this.fibersPer100,
     required this.saturatedFatPer100,
     required this.polyunsaturatedFatPer100,
@@ -45,7 +46,7 @@ class ProposedIngredient {
   double get protein=> (proteinPer100/ 100.0) * quantity;
   double get carbs  => (carbsPer100  / 100.0) * quantity;
   double get fat    => (fatPer100    / 100.0) * quantity;
-  // ✅ AJOUT : Getters pour les nouveaux champs
+  double get sucres => (sucresPer100 / 100.0) * quantity;
   double get fibers   => (fibersPer100    / 100.0) * quantity;
   double get saturatedFat => (saturatedFatPer100 / 100.0) * quantity;
   double get polyunsaturatedFat => (polyunsaturatedFatPer100 / 100.0) * quantity;
@@ -64,6 +65,7 @@ class ProposedIngredient {
     final satTot  = ((j["saturated_fat"] ?? 0) as num).toDouble();
     final polyTot = ((j["polyunsaturated_fat"] ?? 0) as num).toDouble();
     final monoTot = ((j["monounsaturated_fat"] ?? 0) as num).toDouble();
+    final sucresTot = ((j["sucres"] ?? 0) as num).toDouble(); 
 
     // évite division par zéro : si q==0, on met /100g à 0
     final safe = q > 0 ? q : 100.0;
@@ -74,7 +76,7 @@ class ProposedIngredient {
       proteinPer100:q > 0 ? (pTot    / safe) * 100.0 : 0.0,
       carbsPer100:  q > 0 ? (cTot    / safe) * 100.0 : 0.0,
       fatPer100:    q > 0 ? (fTot    / safe) * 100.0 : 0.0,
-      // ✅ AJOUT : Calcul des valeurs /100g pour les nouveaux champs
+      sucresPer100: q > 0 ? (sucresTot / safe) * 100.0 : 0.0,
       fibersPer100: q > 0 ? (fbrTot  / safe) * 100.0 : 0.0,
       saturatedFatPer100: q > 0 ? (satTot  / safe) * 100.0 : 0.0,
       polyunsaturatedFatPer100: q > 0 ? (polyTot / safe) * 100.0 : 0.0,

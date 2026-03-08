@@ -15,7 +15,9 @@
     ]
   },
   "compileOnSave": true,
-  "include": [
-    "src"
+  "include": ["src/**/*.ts"],
+  "exclude": [
+    "src/indexold.ts",
+    "src/decomposeMealV2.ts"
   ]
 }

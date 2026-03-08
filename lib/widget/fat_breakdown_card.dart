@@ -3,12 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../dashboard/dashboard_notifier.dart'; // Import pour le provider
 
+//// WIDGET plus utilisé car on n'a pas toujours l'info sur les mono et poly insaturés
 class FatBreakdownCard extends ConsumerWidget {
   const FatBreakdownCard({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final consumedMacros = ref.watch(dashboardProvider.select((s) => s.consumedMacros));
+    // ✅ On récupère le total "officiel" des lipides
+    final totalFat = consumedMacros['Lipides'] ?? 0.0;
     final saturated = consumedMacros['Saturés'] ?? 0.0;
     final monounsaturated = consumedMacros['Monoinsaturés'] ?? 0.0;
     final polyunsaturated = consumedMacros['Polyinsaturés'] ?? 0.0;
@@ -23,6 +26,8 @@ class FatBreakdownCard extends ConsumerWidget {
         const SizedBox(height: 16),
         // Barre de répartition
         FatBreakdownBar(
+          // ✅ On passe le total officiel à la barre
+          totalFat: totalFat,
           saturated: saturated,
           monounsaturated: monounsaturated,
           polyunsaturated: polyunsaturated,
@@ -56,12 +61,15 @@ class FatBreakdownCard extends ConsumerWidget {
 }
 
 class FatBreakdownBar extends StatelessWidget {
+  // ✅ On ajoute `totalFat` aux paramètres
+  final double totalFat;
   final double saturated;
   final double monounsaturated;
   final double polyunsaturated;
 
   const FatBreakdownBar({
     super.key,
+    required this.totalFat,
     required this.saturated,
     required this.monounsaturated,
     required this.polyunsaturated,
@@ -69,8 +77,7 @@ class FatBreakdownBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final totalFat = saturated + monounsaturated + polyunsaturated;
-
+    // On n'a plus besoin de recalculer le total ici
     if (totalFat == 0) {
       return Container(
         height: 16,
@@ -80,6 +87,9 @@ class FatBreakdownBar extends StatelessWidget {
         ),
       );
     }
+
+    // On calcule la part "autre" (lipides non classifiés)
+    final other = totalFat - saturated - monounsaturated - polyunsaturated;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
@@ -101,6 +111,12 @@ class FatBreakdownBar extends StatelessWidget {
               Expanded(
                 flex: (polyunsaturated * 100).toInt(),
                 child: Container(color: Colors.blue.shade400),
+              ),
+            // ✅ On ajoute un segment gris pour les lipides non classifiés
+            if (other > 0.1) // Seuil pour éviter les micro-barres dues aux arrondis
+              Expanded(
+                flex: (other * 100).toInt(),
+                child: Container(color: Colors.grey.shade400),
               ),
           ],
         ),

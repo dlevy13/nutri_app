@@ -20,28 +20,56 @@ class BejChart extends ConsumerWidget {
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            const Icon(Icons.show_chart, size: 18),
-            const SizedBox(width: 6),
-            Text(
-              L10n.calometreWithTrend, 
-              style: Theme.of(context).textTheme.titleSmall
-            ),
-            const SizedBox(width: 6),
-            IconButton(
-              icon: const Icon(Icons.info_outline, size: 18),
-              tooltip: 'À propos du CaloMètre',
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-              onPressed: () => _showCalometreInfo(context),
-            ),
-            const Spacer(),
-            DropdownButton<int>(
-              value: days,
-              items: const [30,60,90].map((d)=>DropdownMenuItem(value:d,child: Text("$d j"))).toList(),
-              onChanged: (v) => ref.read(bejRangeDaysProvider.notifier).state = v ?? 60,
-            ),
-          ]),
+          Row(
+            children: [
+              const Icon(Icons.show_chart, size: 18),
+              const SizedBox(width: 6),
+
+              // 🟢 TEXTE FLEXIBLE → empêche l’overflow
+              Expanded(
+                child: Text(
+                  L10n.calometreWithTrend,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ),
+
+              const SizedBox(width: 6),
+
+              IconButton(
+                icon: const Icon(Icons.info_outline, size: 18),
+                tooltip: 'À propos du CaloMètre',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                onPressed: () => _showCalometreInfo(context),
+              ),
+
+              const SizedBox(width: 4),
+
+              // 🟢 DROPDOWN CONTRAINT (ne force plus le layout)
+              SizedBox(
+                height: 36,
+                child: DropdownButton<int>(
+                  value: days,
+                  underline: const SizedBox(),
+                  items: const [30, 60, 90]
+                      .map(
+                        (d) => DropdownMenuItem(
+                          value: d,
+                          child: Text(
+                            "$d j",
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) =>
+                      ref.read(bejRangeDaysProvider.notifier).state = v ?? 60,
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 8),
           SizedBox(
             height: 220,
@@ -201,10 +229,6 @@ class BejChart extends ConsumerWidget {
                         // Zéro interaction / tooltips (propre)
                         lineTouchData: const LineTouchData(enabled: false),
 
-                        // Petite anim d’entrée
-                        // (si ta version fl_chart supporte ces props; sinon enlève-les)
-                        // swapAnimationDuration: const Duration(milliseconds: 600),
-                        // swapAnimationCurve: Curves.easeOutCubic,
                       ),
                     );
                   }

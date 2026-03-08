@@ -84,6 +84,14 @@ class _QuantityPageState extends State<QuantityPage> {
 
   void _submit() => Navigator.of(context).pop(_value);
 
+  // Dans la classe _QuantityPageState
+
+  void _setHalfPortion() {
+    if (!_hasUsualUnits) return;
+    final halfWeight = _gramsPerUnit / 2.0;
+    _setValue(halfWeight);
+  }
+
   String get _foodName {
     final t = widget.title;
     if (t.contains("'")) {
@@ -167,54 +175,73 @@ class _QuantityPageState extends State<QuantityPage> {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center, // Aligne les éléments sur l'axe principal
                     children: [
+                      // --- MODIFICATION PRINCIPALE ICI ---
                       Expanded(
-                        child: TextField(
-                          controller: _controller,
-                          focusNode: _focus, 
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          textInputAction: TextInputAction.done,
-                          autofocus: true,
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600, height: 1.0),
-                          decoration: InputDecoration(
-                            isDense: true,
-                            border: InputBorder.none,
-                            hintText: "",
-                            suffixIcon: (_controller.text.isNotEmpty)
-                              ? IconButton(
-                                  tooltip: 'Effacer',
-                                  icon: const Icon(Icons.clear),
-                                  onPressed: () {
-                                    setState(() {
-                                      _controller.clear();          // <-- permet d’effacer “100”
-                                      _isEmpty = true;
-                                    });
-                                    _focus.requestFocus();
-                                  },
-                                )
-                              : null,
-                          ),
-                          onChanged: (s) {
-                            final parsed = _tryParse(s);
-                            setState(() {
-                              if (parsed == null) {
-                                // Champ vide ou invalide temporaire -> on laisse vide, boutons désactivés
-                                _isEmpty = true;
-                              } else {
-                                // Valeur valide -> on met à jour _value, boutons actifs
-                                _value = parsed;
-                                _isEmpty = false;
-                              }
-                            });
-                          },
-                          onSubmitted: (_) {
-                            if (!_isEmpty) _submit();                  // bloque la soumission si vide
-                          },
+                        child: Row(
+                          // 1. On centre le champ de texte et l'icône
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            // 2. On utilise IntrinsicWidth pour que la Row s'adapte à la taille du contenu
+                            IntrinsicWidth(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min, // Le Row prend la taille minimale
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  // 3. Le TextField doit être flexible pour ne pas causer d'overflow
+                                  Flexible(
+                                    child: TextField(
+                                      controller: _controller,
+                                      focusNode: _focus,
+                                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                      textInputAction: TextInputAction.done,
+                                      autofocus: true,
+                                      // 4. On aligne le texte à droite pour qu'il soit collé à l'icône
+                                      textAlign: TextAlign.end, 
+                                      style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600, height: 1.0),
+                                      decoration: const InputDecoration(
+                                        isDense: true,
+                                        border: InputBorder.none,
+                                        hintText: "",
+                                      ),
+                                      onChanged: (s) {
+    // 1. On tente de convertir le texte en nombre
+    final newValue = _tryParse(s);
 
+    setState(() {
+      if (newValue != null) {
+        // 2. Si la conversion réussit, on met à jour la valeur
+        //    principale (_value) et on s'assure que le champ n'est
+        //    pas considéré comme vide.
+        _value = newValue;
+        _isEmpty = false;
+      } else {
+        // 3. Si le champ est vide ou contient un texte invalide
+        //    (ex: "abc"), on le signale avec la variable _isEmpty
+        //    pour désactiver les boutons de validation.
+        _isEmpty = true;
+      }
+    });
+  },
+                                      onSubmitted: (_) {
+                                        if (!_isEmpty) _submit();
+                                      },
+                                    ),
+                                  ),
+                                  // 5. L'icône se place juste après
+                                  IconButton(
+                                    icon: Icon(Icons.edit_outlined, color: cs.onSurfaceVariant),
+                                    tooltip: "Modifier la quantité",
+                                    onPressed: () => _focus.requestFocus(),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 6),
+                      // Le texte de l'unité reste à sa place
                       if (_hasUsualUnits)
                         Text("≈ $_currentUnits ${_unit.label}${_currentUnits > 1 ? 's' : ''}",
                             style: theme.textTheme.titleMedium?.copyWith(color: cs.onSurfaceVariant))
@@ -231,6 +258,9 @@ class _QuantityPageState extends State<QuantityPage> {
                 Row(
                   children: [
                     _MiniBtn(label: "-1 ${_unit.label}", onTap: () => _nudgeGeneric(-1)),
+                    const SizedBox(width: 6),
+                    // ▼▼ LE NOUVEAU BOUTON ▼▼
+                    _MiniBtn(label: "½ ${_unit.label}", onTap: _setHalfPortion),
                     const Spacer(),
                     _MiniBtn(label: "+1 ${_unit.label}", onTap: () => _nudgeGeneric(1), filled: true),
                   ],

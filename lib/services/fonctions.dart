@@ -1,15 +1,8 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/app_user.dart';
-import '../models/meal.dart'; 
- import '../log.dart';
- import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+// fonctions.dart
 import 'package:characters/characters.dart';
+import '../models/meal.dart';
 
- 
-
+/// Normalise une chaîne (pour recherches, comparaisons, etc.)
 String normalize(String input) {
   return input
       .toLowerCase()
@@ -26,81 +19,44 @@ String normalize(String input) {
       .replaceAll(RegExp(r'\s+'), ' ');
 }
 
-// ==== FIRESTORE UTILISATEURS ====
-
+/// Raccourcit un nom à N mots (utile pour l’affichage).
 String getShortenedName(String name, {int wordCount = 5}) {
   return name.split(' ').take(wordCount).join(' ');
 }
-Future<void> saveUserToFirestore(AppUser user) async {
-  final usersRef = FirebaseFirestore.instance.collection('users');
 
-  // ✅ Calcul de l’âge depuis birthDate si présent
-  int computedAge = user.age;
-  if (user.birthDate != null) {
-    final birth = DateTime.tryParse(user.birthDate!);
-    if (birth != null) {
-      final today = DateTime.now();
-      computedAge = today.year - birth.year;
-      if (today.month < birth.month ||
-          (today.month == birth.month && today.day < birth.day)) {
-        computedAge--;
-      }
-    }
-  }
+// ============================================================================
+//  ANALYSE LOCALE DES REPAS (fallback utilisé par AIManager)
+// ============================================================================
 
-  // ✅ Construire la map Firestore
-  final userMap = user.toMap();
-  userMap['age'] = computedAge;
-
-  logger.d("📤 Sauvegarde Firestore pour ${user.uid} avec âge=$computedAge");
-
-  // ✅ Sauvegarde dans Firestore
-  await usersRef.doc(user.uid).set(userMap, SetOptions(merge: true));
-
-  // ✅ Stockage dans SharedPreferences pour usage offline
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.setString('uid', user.uid);
-  await prefs.setString('prenom', user.prenom);
-  await prefs.setDouble('poids', user.poids);
-  await prefs.setDouble('taille', user.taille);
-  await prefs.setString('activite', user.activite);
-  await prefs.setInt('age', computedAge);
-  if (user.birthDate != null) {
-    await prefs.setString('birthDate', user.birthDate!);
-  }
-  await prefs.setDouble('tdee', user.tdee);
-
-  logger.d("💾 Données utilisateur enregistrées dans SharedPreferences");
-}
-
-
-Future<AppUser?> getUserFromFirestore(String uid) async {
-  final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
-
-  if (doc.exists && doc.data() != null) {
-    return AppUser.fromMap(doc.data()!);
-  } else {
-    return null;
-  }
-}
 /// 🔹 Fallback local : analyse avancée sans IA
 String _fallbackLocalAnalysis(Map<String, dynamic> data) {
   double totalCal = 0, totalProt = 0, totalCarb = 0, totalFat = 0;
 
   // 🔸 Extraction des données selon format
   if (data.containsKey("jour")) {
-    for (var meal in data["jour"]["repas"]) {
-      totalCal += meal["calories"];
-      totalProt += meal["protein"];
-      totalCarb += meal["carbs"];
-      totalFat += meal["fat"];
+    final jour = data["jour"];
+    if (jour is Map && jour["repas"] is List) {
+      for (var meal in (jour["repas"] as List)) {
+        if (meal is Map) {
+          totalCal += (meal["calories"] ?? 0) * 1.0;
+          totalProt += (meal["protein"] ?? 0) * 1.0;
+          totalCarb += (meal["carbs"] ?? 0) * 1.0;
+          totalFat += (meal["fat"] ?? 0) * 1.0;
+        }
+      }
     }
   } else if (data.containsKey("semaine")) {
-    for (var day in data["semaine"]) {
-      totalCal += day["totaux"]["calories"];
-      totalProt += day["totaux"]["proteins"];
-      totalCarb += day["totaux"]["carbs"];
-      totalFat += day["totaux"]["fats"];
+    final semaine = data["semaine"];
+    if (semaine is List) {
+      for (var day in semaine) {
+        if (day is Map && day["totaux"] is Map) {
+          final totaux = day["totaux"] as Map;
+          totalCal += (totaux["calories"] ?? 0) * 1.0;
+          totalProt += (totaux["proteins"] ?? 0) * 1.0;
+          totalCarb += (totaux["carbs"] ?? 0) * 1.0;
+          totalFat += (totaux["fats"] ?? 0) * 1.0;
+        }
+      }
     }
   }
 
@@ -109,14 +65,18 @@ String _fallbackLocalAnalysis(Map<String, dynamic> data) {
   // 🔸 Calcul des ratios (% des calories totales)
   final protPct = ((totalProt * 4) / totalCal) * 100;
   final carbPct = ((totalCarb * 4) / totalCal) * 100;
-  final fatPct = ((totalFat * 9) / totalCal) * 100;
+  final fatPct  = ((totalFat  * 9) / totalCal) * 100;
 
-  // 🔸 Analyse des ratios vs recommandations
   String interpretation = "📊 **Analyse locale des repas :**\n";
-  interpretation += "- Calories : ${totalCal.toStringAsFixed(0)} kcal\n";
-  interpretation += "- Répartition : Prot. ${protPct.toStringAsFixed(1)}% | Gluc. ${carbPct.toStringAsFixed(1)}% | Lip. ${fatPct.toStringAsFixed(1)}%\n\n";
+  interpretation +=
+      "- Calories : ${totalCal.toStringAsFixed(0)} kcal\n"
+      "- Répartition : Prot. ${protPct.toStringAsFixed(1)}% | "
+      "Gluc. ${carbPct.toStringAsFixed(1)}% | "
+      "Lip. ${fatPct.toStringAsFixed(1)}%\n\n";
 
-  List<String> observations = [];
+  // 🔸 Observations simples
+  final List<String> observations = [];
+
   if (protPct < 15) {
     observations.add("🔹 Apport en protéines trop faible pour soutenir la masse musculaire.");
   } else if (protPct > 30) {
@@ -135,140 +95,74 @@ String _fallbackLocalAnalysis(Map<String, dynamic> data) {
     observations.add("🔹 Lipides un peu bas, veille à consommer de bonnes graisses.");
   }
 
-  if (observations.isEmpty) observations.add("✅ Ton profil nutritionnel est bien équilibré.");
+  if (observations.isEmpty) {
+    observations.add("✅ Ton profil nutritionnel est globalement bien équilibré.");
+  }
 
   // 🔸 Conseils pratiques
-  List<String> conseils = [
-    "🥗 Varie tes sources de protéines (viande, poisson, légumineuses).",
-    "🥑 Favorise les bonnes graisses (huile d’olive, noix).",
-    "🍞 Choisis des glucides complexes (riz complet, patate douce)."
+  const List<String> conseils = [
+    "🥗 Varie tes sources de protéines (viande maigre, poisson, œufs, légumineuses).",
+    "🥑 Favorise les bonnes graisses (huile d’olive, noix, graines, avocat).",
+    "🍞 Choisis des glucides complexes (riz complet, patate douce, flocons d’avoine).",
   ];
 
-      interpretation += "**Observations :**\n";
-      for (var o in observations) {
-      interpretation += "- $o\n";
-    }
+  interpretation += "**Observations :**\n";
+  for (final o in observations) {
+    interpretation += "- $o\n";
+  }
 
-    interpretation += "\n**Conseils pratiques :**\n";
-    for (var c in conseils) {
-      interpretation += "- $c\n";
-}
-
+  interpretation += "\n**Conseils pratiques :**\n";
+  for (final c in conseils) {
+    interpretation += "- $c\n";
+  }
 
   return interpretation;
 }
 
-
-/// 🔹 Analyse IA des repas avec fallback local si API indisponible
-
-
-Future<String> analyzeMealsWithAI(Map<String, dynamic> mealsData) async {
-  final String? apiKey = dotenv.env['MISTRAL_API_KEY'];
-  final Uri url = Uri.parse("https://api.mistral.ai/v1/chat/completions");
-
-  if (apiKey == null || apiKey.isEmpty) {
-      throw Exception("❌ Clé API Mistral manquante dans .env");
-    }
-
-  try {
-    final response = await http.post(
-      url,
-      headers: const {
-        "Content-Type": "application/json",
-        // Mistral utilise aussi "Bearer"
-      }..addAll({"Authorization": "Bearer $apiKey"}),
-      body: jsonEncode({
-        "model": "mistral-small-latest", // ou "mistral-large-latest"
-        "temperature": 0.6,
-        "messages": [
-          {
-            "role": "system",
-            "content": "Tu es un coach nutrition. Fournis un résumé clair et des conseils simples."
-          },
-          {
-            "role": "user",
-            "content": "Analyse ces repas : ${jsonEncode(mealsData)}. "
-                "1) Résume en 3 phrases. "
-                "2) Fournis 3 conseils pratiques (avec puces). "
-                "3) Mentionne tout déséquilibre détecté."
-          }
-        ]
-      }),
-    );
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      return data['choices'][0]['message']['content'];
-    } else {
-      return _fallbackLocalAnalysis(mealsData);
-    }
-  } catch (e) {
-    return _fallbackLocalAnalysis(mealsData);
-  }
-}
-Future<String> analyzeMealsViaBackend(
-  Map<String, dynamic> mealsData, {
-  String provider = "mistral",
-}) async {
-  // ⚠️ remplace par l’URL réelle : région + ID projet
-  final uri = Uri.parse(
-    "https://us-central1-nutriapp-4ea20.cloudfunctions.net/analyzeMealsV2",
-  );
-
-  final resp = await http
-      .post(
-        uri,
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "data": mealsData,
-          "provider": provider,
-        }),
-      )
-      .timeout(const Duration(seconds: 50));
-
-  if (resp.statusCode != 200) {
-    throw Exception("Server ${resp.statusCode}: ${resp.body}");
-  }
-
-  final body = jsonDecode(resp.body);
-  final text = (body["analysis"] as String?)?.trim() ?? "";
-  if (text.isEmpty) {
-    throw Exception("Empty analysis from server");
-  }
-
-  return "[API $provider] $text"; // le tag [API] sert juste à vérifier visuellement la source
-}
-/// Analyse locale = ton code fallback actuel
+/// ✅ Fonction utilisée par AIManager comme fallback local
 Future<String> analyzeMealsLocal(Map<String, dynamic> mealsData) async {
-  // Ici, tu réutilises exactement ton code de fallback local
-  // Actuellement c’est sûrement dans _fallbackLocalAnalysis
   return _fallbackLocalAnalysis(mealsData);
 }
 
+// ============================================================================
+//  EXTENSIONS / OUTILS TEXTE
+// ============================================================================
 
 extension StringCap on String {
+  /// Coupe une string à [max] caractères, avec "…" si trop long.
   String cap({int max = 30}) {
     final t = trim();
     final chars = t.characters;
     return (chars.length <= max) ? t : chars.take(max).toString() + '…';
   }
 }
-/// Retourne les kcal normalisés pour 100 g à partir d’un Meal stocké tel quel.
 
+// ============================================================================
+//  NORMALISATION DES MACROS (/100 g + portion)
+// ============================================================================
 
 /// Structure pour représenter les macros normalisées /100 g
 class Macros100 {
-  final double kcal, pro, carb, fat;
+  final double kcal;
+  final double pro;
+  final double carb;
+  final double fat;
+
   const Macros100(this.kcal, this.pro, this.carb, this.fat);
 }
 
-double _d(dynamic v) => (v is num) ? v.toDouble() : 0.0;
+double _d(dynamic v) {
+  if (v == null) return 0.0;
+  if (v is num) return v.toDouble();
+  return 0.0;
+}
 
-/// Remonte toujours à des macros /100 g
+/// Remonte toujours à des macros /100 g depuis :— un `Meal`
+/// — ou une `Map` compatible (par ex. venant d’un JSON local)
 Macros100 per100From(dynamic foodData) {
-  // Cas A : c’est un Meal
+  // Cas A : c’est un Meal (Hive)
   if (foodData is Meal) {
-    final qty = (foodData.quantity ).toDouble();
+    final qty  = foodData.quantity;
     final kcal = _d(foodData.calories);
     final pro  = _d(foodData.protein);
     final carb = _d(foodData.carbs);
@@ -281,15 +175,15 @@ Macros100 per100From(dynamic foodData) {
     return Macros100(kcal, pro, carb, fat); // déjà en /100 g
   }
 
-  // Cas B : c’est une Map (Firestore/Hive/API)
+  // Cas B : c’est une Map (JSON local, etc.)
   final m = foodData as Map<String, dynamic>;
 
-  // Détection si déjà normalisé (/100 g)
+  // Si déjà normalisé /100 g
   final bool hasPerFlag100 = (m['per'] == 100);
   final bool hasPer100Keys = m.containsKey('kcalPer100') ||
-                             m.containsKey('proteinPer100') ||
-                             m.containsKey('carbsPer100') ||
-                             m.containsKey('fatPer100');
+      m.containsKey('proteinPer100') ||
+      m.containsKey('carbsPer100') ||
+      m.containsKey('fatPer100');
 
   if (hasPerFlag100 || hasPer100Keys) {
     final kcal = hasPer100Keys ? _d(m['kcalPer100']) : _d(m['calories']);
@@ -300,7 +194,7 @@ Macros100 per100From(dynamic foodData) {
   }
 
   // Sinon : valeurs pour une portion → remonter en /100 g
-  final qty = _d(m['quantity']);
+  final qty  = _d(m['quantity']);
   final kcal = _d(m['calories']);
   final pro  = _d(m['protein']);
   final carb = _d(m['carbs']);
@@ -316,5 +210,10 @@ Macros100 per100From(dynamic foodData) {
 /// Calcule les macros pour une portion choisie à partir du /100 g
 Macros100 portionFromPer100(Macros100 p100, double grams) {
   final f = grams / 100.0;
-  return Macros100(p100.kcal * f, p100.pro * f, p100.carb * f, p100.fat * f);
+  return Macros100(
+    p100.kcal * f,
+    p100.pro  * f,
+    p100.carb * f,
+    p100.fat  * f,
+  );
 }

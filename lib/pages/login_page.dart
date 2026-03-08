@@ -1,20 +1,23 @@
-// dans lib/pages/login_page.dart
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../login/login_notifier.dart';
-import '../login/login_state.dart';
-import '../main.dart';
 
-class LoginPage extends ConsumerStatefulWidget {
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../dashboard/dashboard_page.dart';
+
+class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
   @override
-  ConsumerState<LoginPage> createState() => _LoginPageState();
+  State<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends ConsumerState<LoginPage> {
+class _LoginPageState extends State<LoginPage> {
+  final _formKey = GlobalKey<FormState>();
+
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
+
+  bool _loading = false;
 
   @override
   void dispose() {
@@ -23,63 +26,139 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     super.dispose();
   }
 
+  Future<void> _login() async {
+    if (!_formKey.currentState!.validate()) return;
+    FocusScope.of(context).unfocus(); 
+    setState(() => _loading = true);
+
+    try {
+      final supabase = Supabase.instance.client;
+      final email = emailController.text.trim();
+      final password = passwordController.text.trim();
+      final res = await supabase.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+
+      final session = supabase.auth.currentSession;
+
+      if (session == null) {
+        throw Exception("Session non créée");
+      }
+
+      // ✅ LOGIN RÉUSSI → NAVIGATION
+      if (!mounted) return;
+
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const DashboardPage()),
+        (_) => false,
+      );
+
+    } on AuthException catch (e) {
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Erreur ${e.statusCode ?? 'Inconnue'}: ${e.message}"),
+          backgroundColor: Colors.red,
+        ),
+      );
+      
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Erreur réseau ou inconnue")),
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+  Future<void> _resetPassword() async {
+    final email = emailController.text.trim();
+
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Veuillez saisir votre email"),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    try {
+      final supabase = Supabase.instance.client;
+
+      await supabase.auth.resetPasswordForEmail(
+        email,
+        redirectTo: 'https://nutriapp-4ea20.web.app/reset-password',
+        // ⬆️ page web ou deep link (voir section 3)
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Email de réinitialisation envoyé. Vérifiez votre boîte mail.",
+          ),
+        ),
+      );
+    } on AuthException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // ✅ On écoute les changements d'état pour les "effets de bord" (navigation, snackbar)
-    ref.listen(loginProvider, (previous, next) {
-      if (next.status == AuthStatus.success) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const AuthWrapper()),
-          (route) => false,
-        );
-      }
-      if (next.status == AuthStatus.failure) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(next.errorMessage ?? "Une erreur est survenue.")),
-        );
-      }
-    });
-
-    // ✅ On "watch" l'état pour reconstruire l'UI (ex: le bouton de chargement)
-    final state = ref.watch(loginProvider);
-
     return Scaffold(
-      appBar: AppBar(title: const Text("Connexion")),
+      appBar: AppBar(title: const Text("Se connecter")),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: ListView(
-          children: [
-            TextField(
-              controller: emailController,
-              decoration: const InputDecoration(labelText: "Email"),
-              keyboardType: TextInputType.emailAddress,
-            ),
-            TextField(
-              controller: passwordController,
-              decoration: const InputDecoration(labelText: "Mot de passe"),
-              obscureText: true,
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              // On désactive le bouton pendant le chargement
-              onPressed: state.status == AuthStatus.loading
-                  ? null
-                  : () {
-                      // On appelle simplement la méthode du Notifier
-                      ref.read(loginProvider.notifier).login(
-                            emailController.text.trim(),
-                            passwordController.text.trim(),
-                          );
-                    },
-              child: state.status == AuthStatus.loading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Text("Se connecter"),
-            ),
-          ],
+        padding: const EdgeInsets.all(16),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              TextFormField(
+                controller: emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(labelText: "Email"),
+                validator: (v) =>
+                    v == null || v.isEmpty ? "Email requis" : null,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: passwordController,
+                decoration:
+                    const InputDecoration(labelText: "Mot de passe"),
+                obscureText: true,
+                validator: (v) =>
+                    v == null || v.isEmpty ? "Mot de passe requis" : null,
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: _loading ? null : _login,
+                child: _loading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text("Se connecter"),
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: _loading ? null : _resetPassword,
+                  child: const Text("Mot de passe oublié ?"),
+                ),
+              ),
+
+            ],
+          ),
         ),
       ),
     );

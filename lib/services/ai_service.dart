@@ -1,37 +1,35 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'api_config.dart';
+
+final supabase = Supabase.instance.client;
 
 class AIService {
-  // ✅ L'URL de votre fonction Firebase
-  final String backendUrl = "https://us-central1-nutriapp-4ea20.cloudfunctions.net/analyzeMealsV2";
 
-  /// Appelle votre backend Firebase pour obtenir l'analyse.
+  /// Analyse via Supabase Edge Function
   Future<String> analyzeMealsViaBackend(
     Map<String, dynamic> mealsData, {
-    String provider = "mistral", // "mistral" ou "openai"
+    String provider = ApiConfig.defaultProvider,
   }) async {
     try {
-      final response = await http.post(
-        Uri.parse(backendUrl),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "data": mealsData,
-          "provider": provider,
-        }),
+      final res = await supabase.functions.invoke(
+        ApiConfig.analyzeMeals,
+        body: {
+          'data': mealsData,
+          'provider': provider,
+        },
       );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return data['analysis'] as String;
-      } else {
-        // Gère les erreurs renvoyées par la fonction Firebase
-        final errorData = jsonDecode(response.body);
-        //print("Erreur du backend (${response.statusCode}): ${errorData['error']}");
-        throw Exception("Erreur du backend: ${errorData['error']}");
+      if (res.status != 200) {
+        throw Exception('analyze-meals failed (status ${res.status})');
       }
+
+      final Map<String, dynamic> json =
+          Map<String, dynamic>.from(res.data);
+
+      return json['analysis'] as String;
+
     } catch (e) {
-      //print("Erreur de communication avec le service d'IA : $e");
-      throw Exception("Analyse IA indisponible. (${e.toString()})");
+      throw Exception('Supabase analyze-meals unavailable: $e');
     }
   }
 }

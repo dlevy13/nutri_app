@@ -38,6 +38,7 @@
       }
     }
   },
+
   "hosting": {
     "public": "build/web",
     "ignore": [
@@ -45,12 +46,22 @@
       "**/.*",
       "**/node_modules/**"
     ],
+
     "rewrites": [
+      {
+        "source": "/reset-password/**",
+        "destination": "/reset-password/index.html"
+      },
+      {
+        "source": "/strava-bridge/**",
+        "destination": "/strava-bridge/index.html"
+      },
       {
         "source": "**",
         "destination": "/index.html"
       }
     ],
+
     "headers": [
       {
         "source": "**/*.@(js|css)",
@@ -72,6 +83,7 @@
       }
     ]
   },
+
   "functions": [
     {
       "source": "functions",
@@ -83,11 +95,10 @@
         "firebase-debug.*.log",
         "*.local"
       ],
-      "predeploy": [
-        "npm --prefix \"$RESOURCE_DIR\" run build"
-      ]
+      "predeploy": ["npm --prefix \"$RESOURCE_DIR\" run build"]
     }
   ],
+
   "firestore": {
     "database": "(default)",
     "location": "europe-west1",

@@ -2,21 +2,16 @@ import 'package:hive/hive.dart';
 import '../models/meal.dart';
 import '../log.dart';
 import 'package:intl/intl.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-
-
-
+//refonte
 class MealDatabaseService {
   final Box<Meal> _mealBox;
 
   MealDatabaseService(this._mealBox);
-/// 🔥 Convertit toute date vers ISO `yyyy-MM-dd`
+
+  /// Convertit une date vers format ISO `yyyy-MM-dd`
   String _normalizeToISO(String dateStr) {
-    // Si déjà ISO
     if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(dateStr)) return dateStr;
 
-    // Si format français dd/MM/yyyy
     final parts = dateStr.split('/');
     if (parts.length == 3) {
       final day = parts[0].padLeft(2, '0');
@@ -25,9 +20,12 @@ class MealDatabaseService {
       return "$year-$month-$day";
     }
 
-    // Fallback : on renvoie tel quel
     return dateStr;
   }
+
+  // --------------------------------------------------------------------
+  // 🔵 AJOUTER UN REPAS (version locale uniquement)
+  // --------------------------------------------------------------------
 
   Future<void> addMeal({
     required String name,
@@ -38,8 +36,27 @@ class MealDatabaseService {
     required double quantity,
     required String mealType,
     required String date,
+
+    double? fiber,
+    double? sugars,
+    double? fatSaturated,
+    double? fatMonounsaturated,
+    double? fatPolyunsaturated,
+
+    double? kcalPer100,
+    double? proteinPer100,
+    double? carbsPer100,
+    double? fatPer100,
+    double? fiberPer100,
+    double? sugarsPer100,
+    double? fatSaturatedPer100,
+    double? fatMonounsaturatedPer100,
+    double? fatPolyunsaturatedPer100,
+
+    String? group,
   }) async {
     final isoDate = _normalizeToISO(date);
+
     final meal = Meal(
       name: name,
       calories: calories,
@@ -49,247 +66,149 @@ class MealDatabaseService {
       quantity: quantity,
       type: mealType,
       date: isoDate,
+
+      // totaux
+      fiber: fiber,
+      sucres: sugars,
+      fatSaturated: fatSaturated,
+      fatMonounsaturated: fatMonounsaturated,
+      fatPolyunsaturated: fatPolyunsaturated,
+
+      // per 100 g
+      kcalPer100: kcalPer100,
+      proteinPer100: proteinPer100,
+      carbsPer100: carbsPer100,
+      fatPer100: fatPer100,
+      fiberPer100: fiberPer100,
+      sucresPer100: sugarsPer100,
+      fatSaturatedPer100: fatSaturatedPer100,
+      fatMonounsaturatedPer100: fatMonounsaturatedPer100,
+      fatPolyunsaturatedPer100: fatPolyunsaturatedPer100,
+
+      group: group,
     );
 
     await _mealBox.add(meal);
-    logger.d("📦 Repas ajouté localement dans Hive : ${meal.name}");
-
-    await _uploadToFirestore(meal);
+    logger.d("📦 Repas ajouté LOCAL : ${meal.name}");
   }
 
   Future<void> addCustomFood(Meal meal) async {
-    logger.d("📥 Fonction addCustomFood appelée pour : ${meal.name}");
     await _mealBox.add(meal);
-    logger.d("📦 Repas ajouté localement : ${meal.name}");
-
-    await _uploadToFirestore(meal);
+    logger.d("📦 Aliment custom ajouté LOCAL : ${meal.name}");
   }
 
-  Future<void> _uploadToFirestore(Meal meal) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) {
-      logger.e("❌ Aucun utilisateur connecté → Firestore annulé");
-      return;
-    }
+  // --------------------------------------------------------------------
+  // 🔴 SUPPRESSION & RESET
+  // --------------------------------------------------------------------
 
-    final mealRef = FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('meals');
-
-    final mealData = meal.toMap();
-    mealData['userId'] = uid;
-
-    try {
-      final doc = await mealRef.add(meal.toMap());
-      meal.firestoreId = doc.id; // ✅ on sauvegarde l'id Firestore
-      await meal.save(); // ✅ on met à jour l'objet Hive
-      logger.d("✅ Repas envoyé sur Firestore (ID : ${doc.id})");
-    } catch (e) {
-      logger.e("❌ Erreur Firestore : $e");
-    }
-  }
-
-  Future<void> deleteMeal(String key) async {
-    await _mealBox.delete(key);
+  Future<void> deleteMealAt(int index) async {
+    await _mealBox.deleteAt(index);
   }
 
   Future<void> resetMeals() async {
     await _mealBox.clear();
   }
 
-  Future<List<Meal>> getMeals({required String mealType, required String date}) async {
-    return _mealBox.values
-        .where((meal) => meal.type == mealType && meal.date == date)
-        .toList();
-  }
-
-  Future<List<String>> getCustomFoods() async {
-    final allFoods = _mealBox.values.map((meal) => meal.name.trim()).toSet();
-    return allFoods.toList();
-  }
-
-  Future<List<Meal>> searchFoods(String query) async {
-  final lowerQuery = query.toLowerCase();
-
-  /// 1️⃣ Recherche locale (Hive)
-  final localResults = _mealBox.values.where((meal) {
-    return meal.name.toLowerCase().contains(lowerQuery);
-  }).toList();
-
-  logger.d("🔍 Hive → ${localResults.length} résultats trouvés");
-
-  /// 2️⃣ Recherche Firestore (toujours, pour synchro)
-  final uid = FirebaseAuth.instance.currentUser?.uid;
-  if (uid == null) {
-    logger.w("⚠️ Pas d’utilisateur connecté, Firestore ignoré");
-    return localResults;
-  }
-
-  List<Meal> firestoreResults = [];
-  try {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('meals')
-        .where('name', isGreaterThanOrEqualTo: query)
-        .where('name', isLessThan: query + '\uf8ff')
-        .get();
-
-    firestoreResults = snapshot.docs.map((doc) {
-      final data = doc.data();
-      final meal = Meal.fromMap(data); // ⚠️ Assure-toi que Meal.fromMap existe
-      return meal;
-    }).toList();
-
-    logger.d("🔥 Firestore → ${firestoreResults.length} résultats trouvés");
-
-    /// 3️⃣ Mettre en cache dans Hive les résultats Firestore s’ils n’existent pas déjà
-    for (final meal in firestoreResults) {
-      final exists = _mealBox.values.any((m) => m.name == meal.name);
-      if (!exists) {
-        await _mealBox.add(meal);
-        logger.d("💾 Aliment Firestore ajouté au cache Hive : ${meal.name}");
-      }
-    }
-
-  } catch (e) {
-    logger.e("❌ Erreur recherche Firestore : $e");
-  }
-
-    /// 4️⃣ Fusionner Hive + Firestore et supprimer les doublons par nom
-    final Map<String, Meal> uniqueMeals = {};
-
-    for (final meal in [...localResults, ...firestoreResults]) {
-      uniqueMeals[meal.name.toLowerCase()] = meal; // clé = nom en minuscule
-    }
-
-    /// ✅ Retourne uniquement les valeurs uniques
-    return uniqueMeals.values.toList();
-}
-
-
-  Future<List<Meal>> getMealsForDate(String date) async {
-  final isoDate = _normalizeToISO(date);
-  return _mealBox.values.where((meal) => meal.date == isoDate).toList();
-}
-
-
-  Future<List<Meal>> getMealsByDateAndType(String date, String type) async {
-    final isoDate = _normalizeToISO(date);
-    return _mealBox.values.where((meal) => meal.date == isoDate).toList();
-  }
-
-  Future<Map<String, List<Map<String, dynamic>>>> getMealsForTheWeek() async {
-  // ✅ 1. Synchroniser avec Firestore avant lecture Hive
-  await fetchMealsFromFirestore();
-
-  final Map<String, List<Map<String, dynamic>>> data = {};
-  final now = DateTime.now();
-  final monday = now.subtract(Duration(days: now.weekday - 1));
-
-  // ✅ 2. Lire les repas depuis Hive (après synchro)
-  for (int i = 0; i < 7; i++) {
-    final date = monday.add(Duration(days: i));
-    final dateStr = DateFormat('yyyy-MM-dd').format(date);
-    final meals = _mealBox.values
-        .where((meal) => meal.date == dateStr)
-        .map((meal) => {
-              "name": meal.name,
-              "calories": meal.calories,
-              "protein": meal.protein,
-              "carbs": meal.carbs,
-              "fat": meal.fat,
-              "quantity": meal.quantity,
-              "type": meal.type,
-              "date": meal.date,
-            })
-        .toList();
-
-    data[dateStr] = meals;
-  }
-
-  return data;
-}
-
-
-  Future<void> updateMeal(String key, Meal updatedMeal) async {
-    await _mealBox.put(key, updatedMeal);
-  }
-
   Future<void> deleteDatabaseFile() async {
     await _mealBox.deleteFromDisk();
   }
 
-  Future<List<Meal>> getMostFrequentMealsByType(String mealType, {int limit = 15}) async {
-  // 1) filtre local par type
-  final items = _mealBox.values.where((m) => m.type == mealType).toList();
+  // --------------------------------------------------------------------
+  // 🔍 LECTURE
+  // --------------------------------------------------------------------
 
-  // 2) tri récent uniquement via 'date' (yyyy-MM-dd)
-  items.sort((a, b) {
-    final ad = (a.date ?? '').toString();
-    final bd = (b.date ?? '').toString();
-    return bd.compareTo(ad); // lexicographique OK pour yyyy-MM-dd
-  });
-
-  // 3) dédoublonnage par nom normalisé
-  final seen = <String>{};
-  final out = <Meal>[];
-  for (final m in items) {
-    final name = (m.name).trim();
-    if (name.isEmpty) continue;
-    final key = _normalizeName(name);
-    if (seen.add(key)) {
-      out.add(m);
-      if (out.length >= limit) break;
-    }
+  Future<List<Meal>> getMeals({
+    required String mealType,
+    required String date,
+  }) async {
+    final iso = _normalizeToISO(date);
+    return _mealBox.values
+        .where((m) => m.type == mealType && m.date == iso)
+        .toList();
   }
-  return out;
-}
 
-String _normalizeName(String s) {
-  var t = s.trim().toLowerCase();
-  const withAccents = 'àâäáãåçéèêëíìîïñóòôöõúùûüŷýÿœæ';
-  const noAccents   = 'aaaaaaceeeeiiiinooooouuuuyyyoeae';
-  for (var i = 0; i < withAccents.length; i++) {
-    t = t.replaceAll(withAccents[i], noAccents[i]);
+  Future<List<Meal>> getMealsForDate(String date) async {
+    final iso = _normalizeToISO(date);
+    return _mealBox.values.where((m) => m.date == iso).toList();
   }
-  t = t.replaceAll(RegExp(r'[^\w\s]'), ' ').replaceAll(RegExp(r'\s+'), ' ');
-  return t;
-}
 
+  Future<List<Meal>> getMealsByDateAndType(String date, String type) async {
+    final iso = _normalizeToISO(date);
+    return _mealBox.values
+        .where((m) => m.date == iso && m.type == type)
+        .toList();
+  }
 
-  Future<List<Meal>> fetchMealsFromFirestore() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) {
-      logger.w("⚠️ Pas d’utilisateur connecté, Firestore ignoré");
-      return [];
-    }
+  Future<List<String>> getCustomFoods() async {
+    return _mealBox.values.map((m) => m.name.trim()).toSet().toList();
+  }
 
-    try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('meals')
-          .get();
+  Future<List<Meal>> searchFoods(String query) async {
+    final q = query.toLowerCase();
+    return _mealBox.values
+        .where((m) => m.name.toLowerCase().contains(q))
+        .toList();
+  }
 
-      final meals = snapshot.docs.map((doc) => Meal.fromMap(doc.data())).toList();
-      logger.d("🔥 Firestore → ${meals.length} repas récupérés");
+  // --------------------------------------------------------------------
+  // 🔥 Derniers repas utilisés (type pour suggestions)
+  // --------------------------------------------------------------------
 
-      // ✅ Cache Hive
-      for (final meal in meals) {
-        final exists = _mealBox.values.any((m) =>
-            m.name == meal.name && m.date == meal.date && m.type == meal.type);
-        if (!exists) {
-          await _mealBox.add(meal);
-          logger.d("💾 Repas Firestore ajouté dans Hive : ${meal.name}");
-        }
+  Future<List<Meal>> getMostFrequentMealsByType(
+    String mealType, {
+    int limit = 15,
+  }) async {
+    final items = _mealBox.values.where((m) => m.type == mealType).toList();
+
+    items.sort((a, b) => b.date.compareTo(a.date));
+
+    final seen = <String>{};
+    final result = <Meal>[];
+
+    for (final m in items) {
+      final key = _normalizeName(m.name);
+      if (seen.add(key)) {
+        result.add(m);
+        if (result.length >= limit) break;
       }
-      return meals;
-    } catch (e) {
-      logger.e("❌ Erreur récupération Firestore : $e");
-      return [];
     }
-}
 
+    return result;
+  }
+
+  String _normalizeName(String s) {
+    var t = s.trim().toLowerCase();
+    const withAccents = 'àâäáãåçéèêëíìîïñóòôöõúùûüŷýÿœæ';
+    const noAccents = 'aaaaaaceeeeiiiinooooouuuuyyyoeae';
+
+    for (var i = 0; i < withAccents.length; i++) {
+      t = t.replaceAll(withAccents[i], noAccents[i]);
+    }
+
+    t = t.replaceAll(RegExp(r'[^\w\s]'), ' ');
+    t = t.replaceAll(RegExp(r'\s+'), ' ');
+
+    return t;
+  }
+
+  // --------------------------------------------------------------------
+  // 🔵 Repas de la semaine
+  // --------------------------------------------------------------------
+
+  Future<Map<String, List<Meal>>> getMealsForTheWeek() async {
+    final now = DateTime.now();
+    final monday = now.subtract(Duration(days: now.weekday - 1));
+
+    final Map<String, List<Meal>> out = {};
+
+    for (int i = 0; i < 7; i++) {
+      final d = monday.add(Duration(days: i));
+      final dateStr = DateFormat('yyyy-MM-dd').format(d);
+
+      out[dateStr] =
+          _mealBox.values.where((m) => m.date == dateStr).toList();
+    }
+
+    return out;
+  }
 }

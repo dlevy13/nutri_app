@@ -1,36 +1,68 @@
-// ignore_for_file: unused_element_parameter
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../meal_input/meal_input_page.dart';
+
+import '../dashboard/dashboard_notifier.dart';
+import '../dashboard/dashboard_state.dart';
 import '../pages/profile_form_page.dart';
 import '../pages/training_planner_page.dart';
 import '../services/date_service.dart';
-import '../repositories/strava_repository.dart';
-import '../dashboard/dashboard_notifier.dart';
-import '../dashboard/dashboard_state.dart';
-import '../widget/ai_analysis_card.dart';
-import '../widget/fat_breakdown_card.dart';
+import '../services/feedback_utils.dart';
 import '../courbe/bej_trends_page.dart';
-import '../ui/strings.dart';
+import 'old_dashboard_page.dart';
+import '../widget/section_title.dart';
 
+// CARTES DU DASHBOARD
+import 'widgets/energy_gauge_card.dart';
+import 'widgets/chrono_logger_card.dart';
+import 'widgets/macro_quality_radar.dart';
+import 'widgets/hydration_card.dart';
 
-class DashboardPage extends ConsumerWidget {
+class DashboardPage extends ConsumerStatefulWidget {
   const DashboardPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(dashboardProvider);
+  ConsumerState<DashboardPage> createState() => _DashboardPageState();
+}
+class _DashboardPageState extends ConsumerState<DashboardPage> {
+  @override
+  void initState() {
+    super.initState();
+
+    Future.microtask(_initDashboard);
+    }
+    Future<void> _initDashboard() async {
+    ref.invalidate(dashboardProvider);
+
     final notifier = ref.read(dashboardProvider.notifier);
 
+    // 1️⃣ Local immédiat
+    await notifier.loadLocalData();
+
+    // 2️⃣ Remote → local (Supabase → Hive)
+    await notifier.hydrateLocalFromSupabase();
+
+    // 3️⃣ Rebuild avec données complètes
+    await notifier.loadLocalData();
+  }
+  
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(dashboardProvider);
+    final notifier = ref.read(dashboardProvider.notifier);
+    final cs = Theme.of(context).colorScheme;
+
+      
+
+    // État loading
     if (state.status == ViewStatus.loading && state.prenom.isEmpty) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       );
     }
 
+    // État erreur
     if (state.status == ViewStatus.failure) {
       return Scaffold(
         body: Center(child: Text('Erreur: ${state.errorMessage}')),
@@ -41,902 +73,429 @@ class DashboardPage extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Tableau de bord'),
         actions: [
-          // Condition pour afficher le nom ou un bouton de connexion
+          // Affichage prénom / accès profil
           if (state.prenom.isNotEmpty)
-            // Si le prénom existe, on l'affiche et on le rend cliquable
             GestureDetector(
               onTap: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const ProfileFormPage()),
-                ).then((_) => notifier.loadInitialData()); // On recharge les données au retour
+                ).then((_) => notifier.loadLocalData());
               },
               child: Center(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8.0),
                   child: Text(
                     state.prenom,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ),
             )
           else
-            // Si le prénom est vide, on affiche une icône pour se connecter/voir le profil
             IconButton(
               icon: const Icon(Icons.person),
-              tooltip: 'Profil / Connexion',
               onPressed: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const ProfileFormPage()),
-                ).then((_) => notifier.loadInitialData());
+                ).then((_) => notifier.loadLocalData());
               },
             ),
+            IconButton(
+              icon: const Icon(Icons.feedback_outlined),
+              tooltip: 'Envoyer un feedback',
+              onPressed: sendFeedbackEmail,
+            ),
 
-          // Le bouton de déconnexion est toujours présent
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Se déconnecter',
-            onPressed: () async {
-              await FirebaseAuth.instance.signOut();
-              // L'AuthWrapper dans main.dart s'occupera de la redirection automatique
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Vous avez été déconnecté.")),
-                );
-              }
-            },
-          ),
-          const SizedBox(width: 8), // Un peu d'espace à droite
+
+          const SizedBox(width: 8),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: () => notifier.loadInitialData(),
-        child: ListView(
-          padding: const EdgeInsets.all(16.0),
-          children: [
-            _WeekSelector(),
-            const SizedBox(height: 24),
-            Text(
-              "Macros du ${DateFormat.yMMMMEEEEd('fr_FR').format(state.selectedDate)}",
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 16),
-            _CalorieSummaryDetailed(),
-            const SizedBox(height: 24),
-            _MacroDetailsDetailed(),
-            const SizedBox(height: 24),
-            const FatBreakdownCard(), 
-            const SizedBox(height: 32),
-            _MealCalorieBreakdown(),
-            const SizedBox(height: 32),
-            _StravaActivitiesList(),
-            const SizedBox(height: 32),
-            _AiAnalysisCard(),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.restaurant_menu),
-              label: const Text("Saisir un repas"),
-              onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => MealInputPage(
-                          selectedDate:
-                              DateService.formatStandard(state.selectedDate)))).then(
-                  (_) => notifier.refreshDataAfterMealUpdate()),
-            ),
-            const SizedBox(height: 10),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.calendar_today),
-              label: const Text("Planning d'entraînement"),
-              onPressed: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const TrainingPlannerPage())),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
-// ===========================================================================
-// == WIDGETS D'UI SPÉCIALISÉS
-// ===========================================================================
-
-class _WeekSelector extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final notifier = ref.read(dashboardProvider.notifier);
-    final currentWeekStart =
-        ref.watch(dashboardProvider.select((s) => s.currentWeekStart));
-    final selectedDate =
-        ref.watch(dashboardProvider.select((s) => s.selectedDate));
-    final weeklyMeals =
-        ref.watch(dashboardProvider.select((s) => s.weeklyMeals));
-
-    final weekDates =
-        List.generate(7, (i) => currentWeekStart.add(Duration(days: i)));
-
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            IconButton(
-                icon: const Icon(Icons.chevron_left),
-                onPressed: () => notifier.changeWeek(-1)),
-            Text(
-              "${DateService.formatStandard(weekDates.first)} → ${DateService.formatStandard(weekDates.last)}",
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            IconButton(
-                icon: const Icon(Icons.chevron_right),
-                onPressed: () => notifier.changeWeek(1)),
-            IconButton(
-                icon: const Icon(Icons.home),
-                onPressed: () => notifier.resetToToday(),
-                tooltip: "Aujourd'hui"),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: weekDates.map((date) {
-            final dateStr = DateService.formatStandard(date);
-            final isSelected = dateStr == DateService.formatStandard(selectedDate);
-            final hasMeals = (weeklyMeals[dateStr] ?? []).isNotEmpty;
-            return GestureDetector(
-              onTap: () => notifier.selectDate(date),
-              child: Column(
-                children: [
-                  Text(DateFormat('E', 'fr_FR').format(date).substring(0, 3)),
-                  const SizedBox(height: 4),
-                  CircleAvatar(
-                    radius: isSelected ? 14 : 12,
-                    backgroundColor: isSelected
-                        ? Theme.of(context).primaryColor
-                        : (hasMeals
-                            ? Colors.green.shade200
-                            : Colors.grey.shade300),
-                    child: Text(
-                      date.day.toString(),
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: isSelected ? Colors.white : Colors.black,
-                        fontWeight:
-                            isSelected ? FontWeight.bold : FontWeight.normal,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }).toList(),
-        ),
-      ],
-    );
-  }
-}
-
-
-
-
-class _CalorieSummaryDetailed extends ConsumerWidget {
-  const _CalorieSummaryDetailed({super.key});
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final consumed =
-        ref.watch(dashboardProvider.select((s) => s.consumedMacros['Calories'] ?? 0));
-    final neededWithStrava =
-        ref.watch(dashboardProvider.select((s) => s.macroNeeds['Calories'] ?? 0));
-    final neededWithoutStrava =
-        ref.watch(dashboardProvider.select((s) => s.tdee));
-    final stravaCals =
-        ref.watch(dashboardProvider.select((s) => s.stravaCaloriesForDay));
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Résumé textuel
-        Text(
-          stravaCals > 0
-              ? "Nécessaires : ${neededWithStrava.toStringAsFixed(0)} Kcal\n"
-                "🔥 ${stravaCals.toStringAsFixed(0)} Kcal d'activité"
-              : "Nécessaires : ${neededWithStrava.toStringAsFixed(0)} Kcal",
-          style: const TextStyle(fontSize: 16, color: Colors.grey),
-        ),
-        const SizedBox(height: 24),
-
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final double consomme = consumed;
-            final double totalNecessaire = neededWithStrava;
-            final double objectifSansStrava = neededWithoutStrava;
-            final bool afficherOrange = stravaCals > 0;
-
-            final double largeurTotale = constraints.maxWidth;
-            const double targetPositionRatio = 0.75;
-            final double traitRougePos = largeurTotale * targetPositionRatio;
-            final double traitOrangePos = (afficherOrange && totalNecessaire > 0)
-                ? (objectifSansStrava / totalNecessaire) * traitRougePos
-                : 0;
-            final double widthVert = (totalNecessaire > 0)
-                ? (consomme / totalNecessaire) * traitRougePos
-                : 0;
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  height: 50,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      // Fond gris
-                      Container(
-                        height: 24,
-                        width: largeurTotale,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      // Barre verte (consommation)
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 400),
-                        curve: Curves.easeInOut,
-                        height: 24,
-                        width: widthVert.clamp(0, largeurTotale),
-                        decoration: BoxDecoration(
-                          color: const Color.fromARGB(255, 133, 194, 234),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      // Texte sur la barre
-                      if (widthVert > 40)
-                        Positioned(
-                          left: (widthVert / 2 - 25).clamp(0, largeurTotale - 50),
-                          top: 3,
-                          child: AnimatedOpacity(
-                            duration: const Duration(milliseconds: 300),
-                            opacity: 1.0,
-                            child: Text(
-                              "${consomme.toStringAsFixed(0)} kcal",
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                      // Trait orange (TDEE sans Strava)
-                      if (afficherOrange)
-                        Positioned(
-                          left: traitOrangePos - 1,
-                          top: 0,
-                          height: 24,
-                          child: Container(width: 2, color: Colors.orange),
-                        ),
-                      // Trait rouge (objectif total)
-                      Positioned(
-                        left: traitRougePos - 1,
-                        top: 0,
-                        height: 24,
-                        child: Container(width: 2, color: Colors.red),
-                      ),
-                      // Labels
-                      if (afficherOrange)
-                        Positioned(
-                          left: traitOrangePos - 30,
-                          top: 30,
-                          child: Text(
-                            "${objectifSansStrava.toStringAsFixed(0)} kcal",
-                            style: const TextStyle(
-                              color: Colors.orange, fontSize: 11, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      Positioned(
-                        left: traitRougePos - 30,
-                        top: -18,
-                        child: Text(
-                          "${totalNecessaire.toStringAsFixed(0)} kcal",
-                          style: const TextStyle(
-                            color: Colors.red, fontSize: 11, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // ↓↓↓ Bouton pour la page courbe BEJ ↓↓↓
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    icon: const Icon(Icons.speed, size: 18), // icône "compteur"
-                    label: const Text(L10n.seeCalometre, style: TextStyle(fontSize: 13)),
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                      minimumSize: const Size(0, 32),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    onPressed: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => const BejTrendsPage()));
-                    },
-                  ),
-                )
-
-              ],
+      floatingActionButton: SizedBox(
+        height: 36,
+        child: FloatingActionButton.extended(
+          heroTag: 'fab-planning',
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const TrainingPlannerPage()),
             );
           },
+          label: const Text(
+            "Entraînement",
+            style: TextStyle(fontSize: 11),
+          ),
+          icon: const Icon(Icons.calendar_today, size: 16),
+          backgroundColor: cs.primary,
+          foregroundColor: cs.onPrimary,
+          extendedPadding: const EdgeInsets.symmetric(horizontal: 8),
         ),
-      ],
+      ),
+
+      body: RefreshIndicator(
+        onRefresh: () => notifier.loadLocalData(),
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverPersistentHeader(
+              pinned: true,
+              delegate: _StickyWeekHeader(),
+            ),
+
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  const SizedBox(height: 12),
+
+                  // ======= ÉNERGIE =======
+                  ThemedSectionCard(
+                    title: "Énergie & charge",
+                    accent: cs.primary,
+                    child: const EnergyGaugeCard(),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // ======= JOURNAL =======
+                  ThemedSectionCard(
+                    title: "Journal Nutrition",
+                    accent: cs.primary.withValues(alpha: 0.35),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.sync, size: 20),
+                      tooltip: "Actualiser le journal",
+                      onPressed: () {
+                        ref.read(dashboardProvider.notifier).forceStravaSync();
+                      },
+                    ),
+                    child: const ChronoLoggerCard(),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // ======= HYDRATATION =======
+                  ThemedSectionCard(
+                    title: "Hydratation",
+                    accent: Colors.blue,
+                    child: const HydrationCard(),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // ======= MACROS =======
+                  ThemedSectionCard(
+                    title: "Qualité nutritionnelle",
+                    accent: Colors.green,
+                    child: const MacroQualityRadar(),
+                  ),
+                  const SizedBox(height: 8),
+                ]),
+              ),
+            ),
+          ],
+        ),
+      ),
+
+      bottomNavigationBar: _BottomNavBar(
+        currentIndex: 0,
+        selectedDate: state.selectedDate,
+      ),
+
     );
   }
 }
 
+//
+// ============================================================================
+// SELECTEUR DE SEMAINE
+// ============================================================================
+class _WeekSelectorCompact extends ConsumerWidget {
+  const _WeekSelectorCompact({super.key});
 
-
-
-
-class _MacroDetailsDetailed extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final consumed =
-        ref.watch(dashboardProvider.select((s) => s.consumedMacros));
-    final needed = ref.watch(dashboardProvider.select((s) => s.macroNeeds));
-// ✅ 1. Calcul du besoin en fibres basé sur les calories
+    final notifier = ref.read(dashboardProvider.notifier);
+    final state = ref.watch(dashboardProvider);
+    final cs = Theme.of(context).colorScheme;
 
-    final totalNeededKcal = needed['Calories'] ?? 0;
-    // On applique le ratio de 14g pour 1000 kcal
-    final fiberGoal = (totalNeededKcal / 1000) * 14;
-    final consumedFibers = ref.watch(dashboardProvider.select((s) => s.consumedMacros['Fibres'] ?? 0.0));
+    final start = state.currentWeekStart;
+    final weekDates = List.generate(7, (i) => start.add(Duration(days: i)));
+    final selectedStr = DateService.formatStandard(state.selectedDate);
 
-    // Vos couleurs pour la légende
-    
-    final repas = ["Petit-déjeuner", "Déjeuner", "Dîner", "Collation"];
-    final colorsRepas = [
-      Colors.orange,
-      Colors.green,
-      Colors.blue,
-      Colors.purple
-    ];
-    
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          "Consommation / Besoins",
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 16),
-
-        for (final macro in ["Protéines", "Glucides", "Lipides"])
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return Material(
+      color: Theme.of(context).cardColor,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+        child: Column(
+          children: [
+            // ---- Navigation semaine précédente / suivante ----
+            Row(
               children: [
-                // ✅ CORRECTION APPLIQUÉE ICI
-                Builder(
-                  builder: (context) {
-                    // Cas général pour Protéines et Glucides
-                    if (macro != "Lipides") {
-                      return Text(
-                        "$macro : ${(consumed[macro] ?? 0).toStringAsFixed(0)} g / ${(needed[macro] ?? 0).toStringAsFixed(0)} g",
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      );
-                    }
-
-                    // Cas spécifique pour les Lipides
-                    final totalFat = consumed['Lipides'] ?? 0.0;
-                    final saturatedFat = consumed['Saturés'] ?? 0.0; // Assurez-vous que la clé "Saturés" existe dans votre notifier
-                    final percentage = totalFat > 0 ? (saturatedFat / totalFat) * 100 : 0.0;
-
-                    return Text(
-                      "Lipides : ${totalFat.toStringAsFixed(0)} g (${percentage.toStringAsFixed(0)}% sat.) / ${(needed['Lipides'] ?? 0).toStringAsFixed(0)} g",
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    );
-                  },
+                IconButton(
+                  icon: const Icon(Icons.chevron_left),
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => notifier.changeWeek(-1),
                 ),
-                const SizedBox(height: 8),
-                _MacroBreakdownBar(macro: macro),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Fibres : ${consumedFibers.toStringAsFixed(0)} g / ${fiberGoal.toStringAsFixed(0)} g",
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      "${DateService.formatStandard(weekDates.first)} → ${DateService.formatStandard(weekDates.last)}",
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 8),
-                // On utilise une barre de progression simple ici car la répartition par repas est moins pertinente
-                LinearProgressIndicator(
-                  value: fiberGoal > 0 ? (consumedFibers / fiberGoal).clamp(0.0, 1.0) : 0.0,
-                  minHeight: 12,
-                  borderRadius: BorderRadius.circular(8),
-                  backgroundColor: Colors.grey.shade300,
-                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.brown),
+                IconButton(
+                  icon: const Icon(Icons.chevron_right),
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => notifier.changeWeek(1),
+                ),
+                const SizedBox(width: 4),
+                TextButton.icon(
+                  onPressed: notifier.resetToToday,
+                  icon: const Icon(Icons.home, size: 18),
+                  label: const Text("Aujourd'hui"),
                 ),
               ],
             ),
-          ),
 
-        // La légende des couleurs
-        const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            for (int i = 0; i < repas.length; i++)
-              Row(
-                children: [
-                  Container(width: 12, height: 12, color: colorsRepas[i]),
-                  const SizedBox(width: 4),
-                  Text(repas[i], style: const TextStyle(fontSize: 12)),
-                ],
-              ),
-          ],
-        ),
-      ],
-    );
-  }
-}
+            const SizedBox(height: 6),
 
-class _MacroBreakdownBar extends ConsumerWidget {
-  final String macro;
-  const _MacroBreakdownBar({required this.macro});
+            // ---- Sélection des jours ----
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: weekDates.map((d) {
+                final key = DateService.formatStandard(d);
+                final isSelected = key == selectedStr;
+                final hasMeals = (state.weeklyMeals[key] ?? []).isNotEmpty;
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // On récupère les données
-    final macrosPerMealType =
-        ref.watch(dashboardProvider.select((s) => s.macrosPerMealType));
-    
-    final macroMap = macrosPerMealType[macro] ?? {};
-    final totalMacro = macroMap.values.fold(0.0, (a, b) => a + b);
-    // Si le total est à zéro, on affiche une simple barre grise
-    if (totalMacro == 0) {
-      return Container(
-        height: 12,
-        decoration: BoxDecoration(
-          color: Colors.grey.shade300,
-          borderRadius: BorderRadius.circular(8),
-        ),
-      );
-    }
-    
-    final repas = ["Petit-déjeuner", "Déjeuner", "Dîner", "Collation"];
-    final colorsRepas = [
-      Colors.orange,
-      Colors.green,
-      Colors.blue,
-      Colors.purple
-    ];
-
-    // ✅ ON UTILISE UN ROW AVEC DES EXPANDED
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        height: 12,
-        child: Row(
-          children: List.generate(repas.length, (i) {
-            final repasName = repas[i];
-            final value = macroMap[repasName] ?? 0;
-            
-            // Le `flex` détermine la proportion de chaque segment.
-            // On utilise la valeur du macro directement.
-            return Expanded(
-              flex: (value * 100).toInt(), // flex a besoin d'un int
-              child: Container(
-                color: colorsRepas[i],
-              ),
-            );
-          }),
-        ),
-      ),
-    );
-  }
-}
-
-
-
-class _AiAnalysisCard extends ConsumerWidget {
-  const _AiAnalysisCard({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final status = ref.watch(dashboardProvider.select((s) => s.analysisStatus));
-    final isWeekly = ref.watch(dashboardProvider.select((s) => s.isWeeklyAnalysis));
-
-    // ✅ Présence d’analyses (jour/semaine)
-    final hasDaily = ref.watch(dashboardProvider.select(
-      (s) => s.aiAnalysis.trim().isNotEmpty,
-    ));
-    final hasWeekly = ref.watch(dashboardProvider.select(
-      (s) => s.weeklyAiAnalysis.trim().isNotEmpty,
-    ));
-
-    final analysisText = ref.watch(dashboardProvider.select(
-      (s) => s.isWeeklyAnalysis ? s.weeklyAiAnalysis : s.aiAnalysis,
-    ));
-
-    final expanded = ref.watch(dashboardProvider.select(
-      (s) => s.isWeeklyAnalysis ? s.isWeeklyExpanded : s.isDailyExpanded,
-    ));
-
-    final notifier = ref.read(dashboardProvider.notifier);
-
-    // ───────────────── Header (contrôles) ─────────────────
-    final controls = Card(
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Row(
-          children: [
-            Text(
-              "🤖 Analyse IA",
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(width: 12),
-
-            // Jour + coche si analyse jour dispo
-            const Text("Jour"),
-            AnimatedOpacity(
-              opacity: hasDaily ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 400),
-              child: const Padding(
-                padding: EdgeInsets.only(left: 6),
-                child: Icon(Icons.check_circle, color: Colors.green, size: 18),
-              ),
-            ),
-
-            // Switch
-            Switch(
-              value: isWeekly,
-              onChanged: (v) => notifier.setAnalysisType(v),
-            ),
-
-            // Semaine + coche si analyse semaine dispo
-            const Text("Semaine"),
-            AnimatedOpacity(
-              opacity: hasWeekly ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 400),
-              child: const Padding(
-                padding: EdgeInsets.only(left: 6),
-                child: Icon(Icons.check_circle, color: Colors.green, size: 18),
-              ),
-            ),
-
-            const Spacer(),
-
-       
-          ],
-        ),
-      ),
-    );
-
-    // ───────────────── Corps (carte + bouton) ─────────────────
-    final noAnalysisYet = analysisText.trim().isEmpty;
-    final showLaunchButton = (noAnalysisYet || status == ViewStatus.failure) && status != ViewStatus.loading;
-
-    Widget body;
-
-    if (showLaunchButton) {
-      // 🔹 Pas encore d’analyse → bouton centré
-      body = Center(
-        child: ElevatedButton.icon(
-          onPressed: () => notifier.runMealAnalysis(force: true),
-          icon: const Icon(Icons.play_arrow),
-          label: const Text("Lancer l’analyse"),
-        ),
-      );
-    } else {
-      // 🔹 Analyse disponible → carte + bouton “Relancer” en bas à droite du cadre
-      final card = AiAnalysisCard(
-        title: "🤖 Analyse IA — ${isWeekly ? 'Semaine' : 'Jour'}",
-        content: analysisText,
-        expanded: expanded,
-        onToggle: () => isWeekly
-            ? notifier.toggleWeeklyExpanded()
-            : notifier.toggleDailyExpanded(),
-        isLoading: status == ViewStatus.loading,
-        error: status == ViewStatus.failure
-            ? (ref.read(dashboardProvider).errorMessage?.isNotEmpty == true
-                ? ref.read(dashboardProvider).errorMessage
-                : "Erreur lors de l’analyse")
-            : null,
-        collapsedLines: 4,
-      );
-
-      body = Stack(
-        children: [
-          // La carte d’analyse
-          card,
-
-          // Bouton en bas à droite du cadre (caché si en cours de chargement)
-          if (status != ViewStatus.loading)
-            Positioned(
-              right: 16,
-              bottom: 16,
-              child: ElevatedButton.icon(
-                onPressed: () => notifier.runMealAnalysis(force: true),
-                icon: const Icon(Icons.refresh),
-                label: const Text("Relancer l’analyse"),
-              ),
-            ),
-        ],
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        controls,
-        const SizedBox(height: 8),
-        body,
-      ],
-    );
-  }
-}
-
-
-
-
-class _MealCalorieBreakdown extends ConsumerWidget {
-  
-  // Fonction utilitaire pour les couleurs
-  Color _getColorForRepas(String repas) {
-    switch (repas) {
-      case 'Petit-déjeuner': return const Color.fromARGB(255, 184, 167, 141);
-      case 'Déjeuner': return Colors.green;
-      case 'Dîner': return Colors.blue;
-      case 'Collation': return Colors.purple;
-      case 'Activité': return const Color.fromARGB(255, 233, 115, 107);
-      default: return Colors.grey;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(dashboardProvider);
-    final notifier = ref.read(dashboardProvider.notifier);
-    /// utilitaire locaale
-    /// 
-
-    // On récupère toutes les données nécessaires depuis l'état
-    final totalNeededKcal = state.macroNeeds['Calories'] ?? 0;
-    final totalConsumedKcal = state.consumedMacros['Calories'] ?? 0;
-    final ratios = state.theoreticalCalorieSplit;
-    final consumedPerMeal = state.caloriesPerMeal;
-    final stravaCals = state.stravaCaloriesForDay;
-    
-    final maxWidth = MediaQuery.of(context).size.width * 0.9;
-    final repasKeys = ['Petit-déjeuner', 'Déjeuner', 'Dîner', 'Collation', 'Activité'];
-    void _openMealInput(String repas) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => MealInputPage(
-            selectedDate: DateService.formatStandard(state.selectedDate),
-            mealType: repas,
-          ),
-        ),
-      ).then((_) => notifier.refreshDataAfterMealUpdate());
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-
-        const Text(
-          "Répartition des calories : Réel vs Théorique",
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 12),
-
-        ...repasKeys.map((repas) {
-          // CAS SPÉCIAL : ACTIVITÉ
-          if (repas == "Activité") {
-            if (stravaCals <= 0) return const SizedBox.shrink();
-
-            final consommeKcal = (consumedPerMeal[repas] ?? 0).toDouble();
-            final widthConsomme = totalConsumedKcal > 0
-                ? (maxWidth * (consommeKcal / totalConsumedKcal))
-                : 0.0;
-
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8.0),
-              child: GestureDetector(
-                onTap: () => _openMealInput(repas),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          "Activité (${consommeKcal.toStringAsFixed(0)} kcal)",
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(width: 8),
-                        const Icon(Icons.add_circle_outline, size: 18, color: Colors.blueGrey),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 400),
-                      height: 20,
-                      width: widthConsomme.clamp(0.0, maxWidth),
-                      decoration: BoxDecoration(
-                        color: _getColorForRepas(repas),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }
-
-          // AUTRES REPAS
-          final ratio = (ratios[repas] ?? 0).toDouble();
-          final theoriqueKcal = totalNeededKcal * ratio;
-          final theoriqueWidth = maxWidth * ratio;
-          final consommeKcal = (consumedPerMeal[repas] ?? 0).toDouble();
-          final ratioConsomme =
-              totalConsumedKcal > 0 ? consommeKcal / totalConsumedKcal : 0.0;
-          final widthConsomme = (maxWidth * ratioConsomme).clamp(0.0, maxWidth);
-
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0),
-            child: GestureDetector(
-              onTap: () => _openMealInput(repas),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+                return GestureDetector(
+                  onTap: () => notifier.selectDate(d),
+                  child: Column(
                     children: [
                       Text(
-                        "$repas (${consommeKcal.toStringAsFixed(0)} / ${theoriqueKcal.toStringAsFixed(0)} kcal)",
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+                        DateFormat('E', 'fr_FR').format(d).substring(0, 3),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isSelected ? cs.primary : null,
+                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                        ),
                       ),
-                      const SizedBox(width: 8),
-                      const Icon(Icons.add_circle_outline, size: 18, color: Colors.blueGrey),
+                      const SizedBox(height: 4),
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        width: isSelected ? 30 : 26,
+                        height: isSelected ? 30 : 26,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isSelected
+                              ? cs.primary
+                              : (hasMeals
+                                  ? cs.primaryContainer.withOpacity(.45)
+                                  : cs.surfaceVariant),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          "${d.day}",
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isSelected ? cs.onPrimary : null,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  // Barre théorique (fond clair)
-                  Container(
-                    height: 24,
-                    width: theoriqueWidth,
-                    decoration: BoxDecoration(
-                      // Si ton SDK ne supporte pas .withValues, remplace par .withOpacity(0.2)
-                      color: _getColorForRepas(repas).withValues(alpha: 150),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      "${(ratio * 100).toStringAsFixed(0)}%",
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black54,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  // Barre de consommation (couleur vive)
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 400),
-                    height: 20,
-                    width: widthConsomme,
-                    decoration: BoxDecoration(
-                      color: _getColorForRepas(repas),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-                ],
-              ),
+                );
+              }).toList(),
             ),
-          );
-        }),
-        const SizedBox(height: 10),
-        // La légende
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(width: 14, height: 14, color: Colors.black.withValues(alpha:204)),
-            const SizedBox(width: 5),
-            const Text("Consommé"),
-            const SizedBox(width: 15),
-            Container(width: 14, height: 14, color: Colors.black.withValues(alpha:75)),
-            const SizedBox(width: 5),
-            const Text("Théorique"),
           ],
         ),
-      ],
+      ),
     );
   }
 }
 
+class ThemedSectionCard extends StatelessWidget {
+  final Widget child;
+  final Color accent;
+  final EdgeInsetsGeometry padding;
+  final String? title;
+  final Widget? trailing;
 
-class _StravaActivitiesList extends ConsumerWidget {
+  const ThemedSectionCard({
+    super.key,
+    required this.child,
+    required this.accent,
+    this.title,
+    this.trailing,
+    this.padding = const EdgeInsets.all(12),
+  });
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // On lit toutes les données directement depuis l'état principal
-    final activities = ref.watch(dashboardProvider.select((s) => s.stravaActivitiesForDay));
-    final isConnected = ref.watch(dashboardProvider.select((s) => s.isStravaConnected));
-    final stravaService = ref.read(stravaServiceProvider);
+  Widget build(BuildContext context) {
+    final cardColor = Theme.of(context).cardColor;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text("🏃 Activités Strava du jour",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-
-        // ✅ La logique est maintenant un simple "if/else" basé sur le booléen 'isConnected'
-    
-        if (!isConnected)
-          // CAS 1 : Non connecté -> Affiche le bouton
-          Center(
-            child: ElevatedButton.icon(
-              icon: const Icon(Icons.login),
-              label: const Text("Se connecter à Strava"),
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFFC4C02),
-                  foregroundColor: Colors.white),
-              onPressed: () async {
-                await stravaService.launchAuthUrl();
-              },
+    return Container(
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          )
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Bandeau coloré
+          Container(
+            height: 6,
+            decoration: BoxDecoration(
+              color: accent,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
             ),
-          )
-        else if (activities.isEmpty)
-          // CAS 2 : Connecté mais pas d'activité
-          const Padding(
-            padding: EdgeInsets.all(8.0),
-            child: Text("Aucune activité Strava pour ce jour."),
-          )
-        else
-          // CAS 3 : Connecté avec des activités
-          Column(
-            children: activities.map((act) {
-              final distanceInKm = ((act["distance"] as num?)?.toDouble() ?? 0.0) / 1000;
-              final calories = (act["calories"] as num?)?.toDouble() ?? 0.0;
-              final date = DateTime.parse(act["start_date_local"]);
+          ),
 
-              return ListTile(
-                leading: const Icon(Icons.directions_run, color: Colors.orange),
-                title: Text(act["name"] ?? "Activité"),
-                subtitle: Text(
-                  "${DateService.formatFrenchShort(date)} • "
-                  "${distanceInKm.toStringAsFixed(2)} km • "
-                  "${calories.toStringAsFixed(0)} kcal",
+          if (title != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title!,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                ),
+                if (trailing != null) trailing!,
+              ],
+            ),
+          ),
+          Padding(
+            padding: padding,
+            child: child,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Sticky Header du haut
+class _StickyWeekHeader extends SliverPersistentHeaderDelegate {
+  @override
+  double get minExtent => 200;
+
+  @override
+  double get maxExtent => 220;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    final bg = Theme.of(context).scaffoldBackgroundColor;
+
+    return Material(
+      color: bg,
+      elevation: overlapsContent ? 1.5 : 0,
+      shadowColor: Colors.black12,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: const [
+            SectionTitle("Semaine"),
+            SizedBox(height: 8),
+            _WeekSelectorCompact(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _StickyWeekHeader oldDelegate) => false;
+}
+
+//
+// ============================================================================
+// BOTTOM NAVIGATION
+// ============================================================================
+class _BottomNavBar extends StatelessWidget {
+  final int currentIndex;
+  final DateTime selectedDate;
+
+  const _BottomNavBar({
+    required this.currentIndex,
+    required this.selectedDate,
+  });
+
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: const BorderRadius.only(
+        topLeft: Radius.circular(24),
+        topRight: Radius.circular(24),
+      ),
+      child: NavigationBar(
+        height: 64,
+        selectedIndex: currentIndex,
+        onDestinationSelected: (i) {
+          switch (i) {
+            case 0:
+              Navigator.popUntil(context, (route) => route.isFirst);
+              break;
+
+            case 1:
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const BejTrendsPage()),
+              );
+              break;
+
+            case 2:
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => OldDashboardPage(
+                    selectedDate: selectedDate, // Date déjà choisie
+                  ),
                 ),
               );
-            }).toList(),
-          ),
-      ],
+
+              break;
+
+            case 3:
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfileFormPage()),
+              );
+              break;
+          }
+        },
+        backgroundColor: Colors.white,
+        indicatorColor: const Color(0x114B49D1),
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.home_rounded), label: 'Accueil'),
+          NavigationDestination(icon: Icon(Icons.insights_rounded), label: 'Tendances'),
+          NavigationDestination(icon: Icon(Icons.donut_small_rounded), label: 'Rapport'),
+          NavigationDestination(icon: Icon(Icons.person_rounded), label: 'Profil'),
+        ],
+      ),
     );
   }
 }
-// dans lib/features/dashboard/dashboard_page.dart
 
-// Ce provider vérifie de manière asynchrone si un token Strava est stocké.
-final isStravaConnectedProvider = FutureProvider<bool>((ref) {
-  // Il dépend du stravaServiceProvider que nous avons défini dans le repository
-  return ref.watch(stravaServiceProvider).isConnected();
-});
+

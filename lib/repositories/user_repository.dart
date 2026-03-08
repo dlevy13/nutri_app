@@ -1,11 +1,21 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/common_providers.dart';
+import 'package:hive/hive.dart';
 import '../models/meal.dart';
+import '../log.dart';
 
-// Modèle simple pour le profil utilisateur pour éviter de passer des maps partout
+// -----------------------------------------------------------
+// Modèle de profil utilisateur
+// -----------------------------------------------------------
+
+const String customFoodsBoxName = "custom_foods_box";
+
+// -----------------------------------------------------------
+// USER PROFILE MODEL
+// -----------------------------------------------------------
+
 class UserProfile {
   final double weight;
   final double height;
@@ -30,102 +40,196 @@ class UserProfile {
   });
 }
 
+// -----------------------------------------------------------
+// USER REPOSITORY (SharedPreferences + Hive pour custom foods)
+// -----------------------------------------------------------
+
 class UserRepository {
-  final FirebaseFirestore _firestore;
   final SharedPreferences _prefs;
-  final FirebaseAuth _auth;
+  final Box<Meal> _customFoodsBox;
+  final SupabaseClient _supabase;
 
-  UserRepository(this._firestore, this._prefs, this._auth);
+  UserRepository(this._prefs, this._customFoodsBox, this._supabase);
 
-  User? get _currentUser => _auth.currentUser;
+  // -----------------------------------------------------------
+  // PROFIL UTILISATEUR (LOGIQUE HYBRIDE)
+  // -----------------------------------------------------------
 
-  /// Charge le profil complet de l'utilisateur.
-  /// Il essaie d'abord depuis Firestore, puis se rabat sur SharedPreferences.
   Future<UserProfile> getProfile() async {
-    final uid = _currentUser?.uid;
-    Map<String, dynamic>? data;
+    final user = _supabase.auth.currentUser;
 
-    // 1. Essayer de charger depuis Firestore si l'utilisateur est connecté
-    if (uid != null) {
-      final doc = await _firestore.collection('users').doc(uid).get();
-      if (doc.exists) {
-      data = doc.data();
-  
-   
-      } 
-    } 
+    // 1. Tenter de récupérer les données Supabase (Priorité PWA/iOS)
+    if (user != null) {
+      try {
+        final data = await _supabase
+            .from('profiles')
+            .select()
+            .eq('id', user.id)
+            .maybeSingle();
 
-    // 2. Si Firestore échoue ou si l'utilisateur n'est pas connecté, utiliser SharedPreferences
-    data ??= {
-      'poids': _prefs.getDouble('poids') ?? 70.0,
-      'taille': _prefs.getDouble('taille') ?? 175.0,
-      'age': _prefs.getInt('age') ?? 30,
-      'sexe': _prefs.getString('sexe') ?? 'Homme',
-      'activite': _prefs.getString('activite') ?? 'Modéré',
-      'prenom': _prefs.getString('prenom') ?? _currentUser?.displayName ?? '',
-    };
-    DateTime? birthDate;
-    if (data['birthDate'] != null) {
-      if (data['birthDate'] is Timestamp) {
-        birthDate = (data['birthDate'] as Timestamp).toDate();
-      } else if (data['birthDate'] is String) {
-        birthDate = DateTime.tryParse(data['birthDate']);
+        if (data != null) {
+          // Mapping avec conversion des types numeric (num) vers double
+          final double poids = (data['poids_kg'] as num?)?.toDouble() ?? (_prefs.getDouble("poids") ?? 70.0);
+          final double taille = (data['taille_cm'] as num?)?.toDouble() ?? (_prefs.getDouble("taille") ?? 175.0);
+          final String sexe = data['sexe'] ?? (_prefs.getString("sexe") ?? "Homme");
+          final String activ = data['activite'] ?? (_prefs.getString("activite") ?? "Modéré");
+          final String prenom = data['prenom'] ?? (_prefs.getString("prenom") ?? "");
+          final String garmin = data['garminLink'] ?? (_prefs.getString("garminLink") ?? "");
+          
+          final birthDate = data['birth_date'] != null
+              ? DateTime.parse(data['birth_date'])
+              : (DateTime.tryParse(_prefs.getString("birthDate") ?? ""));
+
+          final age = birthDate != null
+              ? _calculateAge(birthDate)
+              : (_prefs.getInt("age") ?? 30);
+
+          final tdee = _calculateTDEE(poids, taille, age, sexe, activ);
+
+          // 🔹 Mise à jour du cache local pour rester synchro
+          await _syncLocalCache(
+            prenom: prenom,
+            poids: poids,
+            taille: taille,
+            sexe: sexe,
+            activite: activ,
+            age: age,
+            birthDate: birthDate,
+            garmin: garmin,
+          );
+
+          return UserProfile(
+            weight: poids,
+            height: taille,
+            age: age,
+            gender: sexe,
+            activityLevel: activ,
+            tdee: tdee,
+            firstName: prenom,
+            birthDate: birthDate,
+            garminLink: garmin,
+          );
+        }
+      } catch (e) {
+        logger.d("Erreur Supabase getProfile: $e");
       }
     }
-    // Extraire les valeurs avec des valeurs par défaut robustes
-    final double poids = double.tryParse(data['poids'].toString()) ?? 70.0;
-    final double taille = double.tryParse(data['taille'].toString()) ?? 175.0;
-    final int age = int.tryParse(data['age'].toString()) ?? 30;
-    final String sexe = data['sexe'] as String? ?? 'Homme';
-    final String activite = data['activite'] as String? ?? 'Modéré';
-    final String prenom = data['prenom'] as String? ?? '';
-    final String garminLink = data['garminLink'] as String? ?? '';
-    
-    // 3. Calculer le TDEE
-    final double tdee = _calculateTDEE(poids, taille, age, sexe, activite);
 
-    // 4. Mettre en cache les valeurs dans SharedPreferences pour un accès hors ligne
-    _prefs.setDouble('poids', poids);
-    _prefs.setDouble('taille', taille);
-    _prefs.setInt('age', age);
-    _prefs.setString('sexe', sexe);
-    _prefs.setString('activite', activite);
-    _prefs.setString('prenom', prenom);
-    _prefs.setDouble('tdee', tdee);
+    // 2. Fallback local si offline ou pas de données distantes
+    return _getLocalProfile();
+  }
+
+  UserProfile _getLocalProfile() {
+    final poids = _prefs.getDouble("poids") ?? 70.0;
+    final taille = _prefs.getDouble("taille") ?? 175.0;
+    final age = _prefs.getInt("age") ?? 30;
+    final sexe = _prefs.getString("sexe") ?? "Homme";
+    final activ = _prefs.getString("activite") ?? "Modéré";
+    final prenom = _prefs.getString("prenom") ?? "";
+    final garmin = _prefs.getString("garminLink") ?? "";
+    final birthStr = _prefs.getString("birthDate");
+    final birthDate = (birthStr != null) ? DateTime.tryParse(birthStr) : null;
 
     return UserProfile(
       weight: poids,
       height: taille,
       age: age,
       gender: sexe,
-      activityLevel: activite,
-      tdee: tdee,
+      activityLevel: activ,
+      tdee: _calculateTDEE(poids, taille, age, sexe, activ),
       firstName: prenom,
       birthDate: birthDate,
-      garminLink: garminLink,
-      
+      garminLink: garmin,
     );
-    
   }
-/// Récupère les identifiants de l'application Strava de l'utilisateur.
-  Future<Map<String, String>> getStravaCredentials() async {
-    final uid = _currentUser?.uid;
-    if (uid == null) return {};
 
-    final doc = await _firestore.collection('users').doc(uid).collection('stravaApp').doc('credentials').get();
-    if (doc.exists) {
-      return {
-        'clientId': doc.data()?['client_id'] as String? ?? '',
-        'clientSecret': doc.data()?['client_secret'] as String? ?? '',
-      };
-    }
-    return {};
+  // user_repository.dart
+
+Future<void> saveProfile(Map<String, dynamic> data) async {
+  // 1. Sauvegarde Locale SharedPreferences
+  if (data.containsKey("prenom")) _prefs.setString("prenom", data["prenom"]);
+  if (data.containsKey("sexe")) _prefs.setString("sexe", data["sexe"]);
+  if (data.containsKey("activite")) _prefs.setString("activite", data["activite"]);
+  if (data.containsKey("garminLink")) _prefs.setString("garminLink", data["garminLink"]);
+
+  double? p;
+  if (data.containsKey("poids")) {
+    p = _parseToDouble(data["poids"]);
+    if (p != null) _prefs.setDouble("poids", p);
   }
-  /// Calcule le TDEE (Total Daily Energy Expenditure)
+
+  double? t;
+  if (data.containsKey("taille")) {
+    t = _parseToDouble(data["taille"]);
+    if (t != null) _prefs.setDouble("taille", t);
+  }
+
+  if (data.containsKey("birthDate") && data["birthDate"] is DateTime) {
+    final d = data["birthDate"] as DateTime;
+    _prefs.setString("birthDate", d.toIso8601String());
+    _prefs.setInt("age", _calculateAge(d));
+  }
+
+  // 2. Sauvegarde Supabase (Distante)
+  final user = _supabase.auth.currentUser;
+  if (user == null) return;
+
+  try {
+    await _supabase.from('profiles').upsert({
+      'id': user.id,
+     'email': user.email,
+      if (data.containsKey("prenom")) 'prenom': data["prenom"],
+      if (p != null) 'poids_kg': p,
+      if (t != null) 'taille_cm': t,
+      if (data.containsKey("sexe")) 'sexe': data["sexe"],
+      if (data.containsKey("activite")) 'activite': data["activite"],
+      if (data.containsKey("garminLink")) 'garminLink': data["garminLink"],
+      if (data.containsKey("birthDate") && data["birthDate"] is DateTime)
+        // Format YYYY-MM-DD pour le type 'date' SQL
+        'birth_date': (data["birthDate"] as DateTime).toIso8601String().split('T')[0],
+      'updated_at': DateTime.now().toIso8601String(), // Corrigé : updated avec un 'd'
+    });
+  } catch (e) {
+    logger.d("ERREUR SUPABASE : $e");
+    rethrow;
+  }
+}
+
+  // --- Helpers ---
+
+  double? _parseToDouble(dynamic value) {
+    if (value is double) return value;
+    if (value == null) return null;
+    final s = value.toString().replaceAll(',', '.').trim();
+    return double.tryParse(s);
+  }
+
+  int _calculateAge(DateTime birth) {
+    final now = DateTime.now();
+    int age = now.year - birth.year;
+    if (now.month < birth.month || (now.month == birth.month && now.day < birth.day)) age--;
+    return age;
+  }
+
+  Future<void> _syncLocalCache({
+    required String prenom, required double poids, required double taille,
+    required String sexe, required String activite, required int age,
+    DateTime? birthDate, required String garmin,
+  }) async {
+    await _prefs.setString("prenom", prenom);
+    await _prefs.setDouble("poids", poids);
+    await _prefs.setDouble("taille", taille);
+    await _prefs.setString("sexe", sexe);
+    await _prefs.setString("activite", activite);
+    await _prefs.setInt("age", age);
+    await _prefs.setString("garminLink", garmin);
+    if (birthDate != null) await _prefs.setString("birthDate", birthDate.toIso8601String());
+  }
+
   double _calculateTDEE(double poids, double taille, int age, String sexe, String activite) {
-    double bmr = sexe == 'Femme'
+    double bmr = (sexe == 'Femme')
         ? 655.1 + (9.563 * poids) + (1.850 * taille) - (4.676 * age)
-        : 66.5 + (13.75 * poids) + (5.003 * taille) - (6.755 * age);
+        : 66.5  + (13.75 * poids) + (5.003 * taille) - (6.755 * age);
 
     final activityFactors = {
       'Sédentaire': 1.2,
@@ -133,77 +237,54 @@ class UserRepository {
       'Actif': 1.55,
       'Très actif': 1.725,
     };
-    final factor = activityFactors[activite] ?? 1.375;
-    return bmr * factor;
-  }
-  
-  /// Sauvegarde les données du profil de l'utilisateur dans Firestore.
-  Future<void> saveProfile(Map<String, dynamic> profileData) async {
-    final uid = _currentUser?.uid;
-    if (uid == null) throw Exception("Utilisateur non authentifié.");
-
-    await _firestore.collection('users').doc(uid).set(
-      profileData,
-      SetOptions(merge: true),
-    );
+    return bmr * (activityFactors[activite] ?? 1.375);
   }
 
-  /// Sauvegarde les identifiants de l'application Strava de l'utilisateur.
-  Future<void> saveStravaCredentials({required String clientId, required String clientSecret}) async {
-    final uid = _currentUser?.uid;
-    if (uid == null) throw Exception("Utilisateur non authentifié.");
+  // -----------------------------------------------------------
+  // STRAVA (clé locale)
+  // -----------------------------------------------------------
 
-    await _firestore.collection('users').doc(uid).collection('stravaApp').doc('credentials').set({
-      'client_id': clientId,
-      'client_secret': clientSecret,
-    });
-  }
- Future<void> createUserProfile(User user, Map<String, dynamic> profileData) async {
-    // On utilise l'UID de l'utilisateur fraîchement créé
-    final docRef = _firestore.collection('users').doc(user.uid);
-    // On sauvegarde les données initiales du profil
-    await docRef.set(profileData);
-  }
-  /// Sauvegarde un aliment personnalisé dans la sous-collection de l'utilisateur.
-  Future<void> saveCustomFood(Meal meal) async {
-    final uid = _currentUser?.uid;
-    if (uid == null) throw Exception("Utilisateur non authentifié.");
-
-    // Le document aura un ID basé sur le nom de l'aliment pour éviter les doublons
-    final docId = meal.name.trim().toLowerCase(); 
-
-    await _firestore
-        .collection('users')
-        .doc(uid)
-        .collection('custom_foods')
-        .doc(docId)
-        .set(meal.toMap());
+  Future<Map<String, String>> getStravaCredentials() async {
+    return {
+      "clientId": _prefs.getString("strava_clientId") ?? "",
+      "clientSecret": _prefs.getString("strava_clientSecret") ?? "",
+    };
   }
 
-  /// Récupère tous les aliments personnalisés de l'utilisateur.
+  Future<void> saveStravaCredentials({
+    required String clientId,
+    required String clientSecret,
+  }) async {
+    await _prefs.setString("strava_clientId", clientId);
+    await _prefs.setString("strava_clientSecret", clientSecret);
+  }
+
+  // -----------------------------------------------------------
+  // CUSTOM FOODS (HIVE)
+  // -----------------------------------------------------------
+
   Future<List<Meal>> getCustomFoods() async {
-    final uid = _currentUser?.uid;
-    if (uid == null) return [];
+    return _customFoodsBox.values.whereType<Meal>().toList();
+  }
 
-    final querySnapshot = await _firestore
-        .collection('users')
-        .doc(uid)
-        .collection('custom_foods')
-        .get();
-        
-    return querySnapshot.docs.map((doc) => Meal.fromMap(doc.data(), id: doc.id)).toList();
+  Future<void> saveCustomFood(Meal meal) async {
+    final key = meal.name.toLowerCase().trim();
+    await _customFoodsBox.put(key, meal);
+  }
+
+  Future<void> deleteCustomFood(String name) async {
+    final key = name.toLowerCase().trim();
+    await _customFoodsBox.delete(key);
   }
 }
 
-
-// --- Providers Riverpod ---
-
-// On suppose que tu as un provider pour SharedPreferences initialisé dans ton main.dart
+// -----------------------------------------------------------
+// PROVIDER
+// -----------------------------------------------------------
 
 final userRepositoryProvider = Provider<UserRepository>((ref) {
-  return UserRepository(
-    FirebaseFirestore.instance,
-    ref.watch(sharedPreferencesProvider),
-    FirebaseAuth.instance,
-  );
+  final prefs = ref.watch(sharedPreferencesProvider);
+  final customBox = ref.watch(customFoodsBoxProvider); // <-- injection propre
+  final supabase = Supabase.instance.client;
+  return UserRepository(prefs, customBox,supabase);
 });

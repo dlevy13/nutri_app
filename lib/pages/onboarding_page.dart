@@ -81,19 +81,22 @@ class _OnboardingPageState extends State<OnboardingPage> {
             children: [
               // Header : logo centré + bouton Passer à droite
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Stack(
-                  alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Column(
                   children: [
                     Image.asset(
-                      "assets/icons/icon-512.png", // ✅ logo de l'app centré
+                      "assets/icons/nutriWatt_logo.png",
                       height: 100,
                     ),
+
+                    const SizedBox(height: 8),
+
                     Align(
                       alignment: Alignment.centerRight,
-                      child: TextButton(
+                      child: TextButton.icon(
                         onPressed: _finish,
-                        child: const Text(
+                        icon: const Icon(Icons.skip_next, color: Colors.white70, size: 18),
+                        label: const Text(
                           "Passer",
                           style: TextStyle(color: Colors.white70),
                         ),
@@ -102,7 +105,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
                   ],
                 ),
               ),
-
               // Slides
               Expanded(
                 child: PageView.builder(
