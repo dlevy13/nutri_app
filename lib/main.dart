@@ -1,3 +1,6 @@
+import 'core/locator.dart';
+import 'core/providers.dart';
+import 'core/services/navigator_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
