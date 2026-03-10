@@ -4,4 +4,9 @@
     <option name="filePath" value="$PROJECT_DIR$/lib/main.dart" />
     <method v="2" />
   </configuration>
+  <configuration default="true" name="Onboarding (Chrome, rapide)" type="FlutterRunConfigurationType" factoryName="Flutter">
+    <option name="additionalArgs" value="-d chrome -t lib/main_onboarding.dart --release" />
+    <option name="filePath" value="$PROJECT_DIR$/lib/main_onboarding.dart" />
+    <method v="2" />
+  </configuration>
 </component>
