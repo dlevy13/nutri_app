@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../meal_input/meal_input_page.dart';
-import '../models/meal.dart';
 import '../pages/profile_form_page.dart';
 import '../pages/training_planner_page.dart';
 import '../services/date_service.dart';
@@ -13,10 +12,16 @@ import '../widget/ai_analysis_card.dart';
 import '../dashboard/widgets/food_analysis_section.dart';
 import '../courbe/bej_trends_page.dart';
 import '../ui/strings.dart';
+import '../ui/theme/app_theme.dart';
+import '../widget/card_shell.dart';
+import '../widget/adaptive_page_body.dart';
+import '../widget/app_navigation_bar.dart';
+import 'widgets/report_energy_card.dart';
+import 'widgets/meal_distribution_tiles.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 //refonte
-class OldDashboardPage extends ConsumerWidget {
+class OldDashboardPage extends ConsumerStatefulWidget {
   final DateTime selectedDate;
 
   const OldDashboardPage({
@@ -25,14 +30,36 @@ class OldDashboardPage extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<OldDashboardPage> createState() => _OldDashboardPageState();
+}
+
+class _OldDashboardPageState extends ConsumerState<OldDashboardPage> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(dashboardProvider.notifier).selectDate(widget.selectedDate);
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant OldDashboardPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!DateUtils.isSameDay(oldWidget.selectedDate, widget.selectedDate)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ref.read(dashboardProvider.notifier).selectDate(widget.selectedDate);
+        }
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(dashboardProvider);
     final notifier = ref.read(dashboardProvider.notifier);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      notifier.selectDate(selectedDate);
-    });
-
-
     if (state.status == ViewStatus.loading && state.prenom.isEmpty) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
@@ -46,95 +73,35 @@ class OldDashboardPage extends ConsumerWidget {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        centerTitle: false, // 👈 IMPORTANT pour l’alignement iOS
-        titleSpacing: 0,    // 👈 colle le titre à gauche
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  "Rapport du ${DateService.formatFrenchShort(state.selectedDate)}",
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-                const SizedBox(width: 8),
-
-                // 🏷️ Badge "Aujourd’hui"
-                if (DateUtils.isSameDay(state.selectedDate, DateTime.now()))
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE8F0FF), // bleu très clair
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Text(
-                      "Aujourd’hui",
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF4B49D1), // bleu NutriWatt
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ],
-        ),
-        actions: [
-          if (state.prenom.isNotEmpty)
-            GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ProfileFormPage()),
-                ).then((_) => notifier.loadLocalData());
-              },
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                  child: Text(
-                    state.prenom,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ),
-            )
-          else
-            IconButton(
-              icon: const Icon(Icons.person),
-              tooltip: 'Profil',
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ProfileFormPage()),
-                ).then((_) => notifier.loadLocalData());
-              },
-            ),
-
-          const SizedBox(width: 8),
-        ],
-      ),
-
+      appBar: AppBar(title: const Text('Rapport nutritionnel'), actions: [
+        IconButton(
+            tooltip: 'Mon profil',
+            icon: const Icon(Icons.account_circle_outlined),
+            onPressed: () async {
+              await Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const ProfileFormPage()));
+              if (mounted) await notifier.loadLocalData();
+            }),
+      ]),
       body: RefreshIndicator(
         onRefresh: () => notifier.loadLocalData(),
-        child: ListView(
-          padding: const EdgeInsets.all(16.0),
+        child: AdaptivePageBody(
+          maxWidth: 1000,
           children: [
-
+            Text('Mon bilan nutritionnel',
+                style: Theme.of(context).textTheme.headlineLarge),
+            const SizedBox(height: 8),
+            Text(DateService.formatDayWithDate(state.selectedDate),
+                style: Theme.of(context).textTheme.bodyLarge),
+            const SizedBox(height: 24),
             // === HERO CALORIES (nouveau) ===
             const _HeroCaloriesCard(),
             const SizedBox(height: 16),
 
-           // === NUTRITION DU JOUR (Dépliable) ===
+            // === NUTRITION DU JOUR (Dépliable) ===
             const _ExpandableNutritionSection(),
             const SizedBox(height: 16),
-            
+
             // +++ NOTRE NOUVELLE SECTION +++
             const FoodAnalysisSection(), // <-- On appelle le widget public
             const SizedBox(height: 16),
@@ -148,41 +115,32 @@ class OldDashboardPage extends ConsumerWidget {
             const SizedBox(height: 24),
 
             // === TES SECTIONS / GRAPHIQUES EXISTANTS (inchangés) ===
-           
+
             //const SizedBox(height: 16),
             //const _CalorieSummaryDetailed(),
             //const SizedBox(height: 32),
-            
-            _AiAnalysisCard(),
-           
-           
-          ],
-                  ),
-      ),
-      bottomNavigationBar: _BottomNavBar(
-    currentIndex: 0, // 0 = Dashboard
-    onTap: (i) {
-      switch (i) {
-        case 0:
-          // déjà sur Dashboard
-          break;
-        case 1:
-          // TODO: ouvrir ta page "Graphiques"
-          // Navigator.push(context, MaterialPageRoute(builder: (_) => const BejTrendsPage()));
-          break;
-        case 2:
-          // TODO: ouvrir ta page "Repas" (si tu en as une)
-          // Navigator.push(context, MaterialPageRoute(builder: (_) => const MealsPage()));
-          break;
-        case 3:
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileFormPage()));
-          break;
-      }
-    },
-  ),
 
-);
-    
+            _AiAnalysisCard(),
+          ],
+        ),
+      ),
+      bottomNavigationBar: AppNavigationBar(
+          currentIndex: 2,
+          onDestinationSelected: (i) {
+            switch (i) {
+              case 0:
+                Navigator.popUntil(context, (route) => route.isFirst);
+              case 1:
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const BejTrendsPage()));
+              case 2:
+                break;
+              case 3:
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const ProfileFormPage()));
+            }
+          }),
+    );
   }
 }
 
@@ -190,6 +148,7 @@ class OldDashboardPage extends ConsumerWidget {
 // == WIDGETS D'UI SPÉCIALISÉS (RESTANTS)
 // ===========================================================================
 
+// ignore: unused_element
 class _WeekSelector extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -230,7 +189,8 @@ class _WeekSelector extends ConsumerWidget {
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: weekDates.map((date) {
             final dateStr = DateService.formatStandard(date);
-            final isSelected = dateStr == DateService.formatStandard(selectedDate);
+            final isSelected =
+                dateStr == DateService.formatStandard(selectedDate);
             final hasMeals = (weeklyMeals[dateStr] ?? []).isNotEmpty;
             return GestureDetector(
               onTap: () => notifier.selectDate(date),
@@ -265,17 +225,15 @@ class _WeekSelector extends ConsumerWidget {
   }
 }
 
-
-
-
+// ignore: unused_element
 class _CalorieSummaryDetailed extends ConsumerWidget {
-  const _CalorieSummaryDetailed({super.key});
+  const _CalorieSummaryDetailed();
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final consumed =
-        ref.watch(dashboardProvider.select((s) => s.consumedMacros['Calories'] ?? 0));
-    final neededWithStrava =
-        ref.watch(dashboardProvider.select((s) => s.macroNeeds['Calories'] ?? 0));
+    final consumed = ref.watch(
+        dashboardProvider.select((s) => s.consumedMacros['Calories'] ?? 0));
+    final neededWithStrava = ref
+        .watch(dashboardProvider.select((s) => s.macroNeeds['Calories'] ?? 0));
     final neededWithoutStrava =
         ref.watch(dashboardProvider.select((s) => s.tdee));
     final stravaCals =
@@ -288,7 +246,7 @@ class _CalorieSummaryDetailed extends ConsumerWidget {
         Text(
           stravaCals > 0
               ? "Nécessaires : ${neededWithStrava.toStringAsFixed(0)} Kcal\n"
-                "🔥 ${stravaCals.toStringAsFixed(0)} Kcal d'activité"
+                  "🔥 ${stravaCals.toStringAsFixed(0)} Kcal d'activité"
               : "Nécessaires : ${neededWithStrava.toStringAsFixed(0)} Kcal",
           style: const TextStyle(fontSize: 16, color: Colors.grey),
         ),
@@ -304,9 +262,10 @@ class _CalorieSummaryDetailed extends ConsumerWidget {
             final double largeurTotale = constraints.maxWidth;
             const double targetPositionRatio = 0.75;
             final double traitRougePos = largeurTotale * targetPositionRatio;
-            final double traitOrangePos = (afficherOrange && totalNecessaire > 0)
-                ? (objectifSansStrava / totalNecessaire) * traitRougePos
-                : 0;
+            final double traitOrangePos =
+                (afficherOrange && totalNecessaire > 0)
+                    ? (objectifSansStrava / totalNecessaire) * traitRougePos
+                    : 0;
             final double widthVert = (totalNecessaire > 0)
                 ? (consomme / totalNecessaire) * traitRougePos
                 : 0;
@@ -342,7 +301,8 @@ class _CalorieSummaryDetailed extends ConsumerWidget {
                       // Texte sur la barre
                       if (widthVert > 40)
                         Positioned(
-                          left: (widthVert / 2 - 25).clamp(0, largeurTotale - 50),
+                          left:
+                              (widthVert / 2 - 25).clamp(0, largeurTotale - 50),
                           top: 3,
                           child: AnimatedOpacity(
                             duration: const Duration(milliseconds: 300),
@@ -380,7 +340,9 @@ class _CalorieSummaryDetailed extends ConsumerWidget {
                           child: Text(
                             "${objectifSansStrava.toStringAsFixed(0)} kcal",
                             style: const TextStyle(
-                              color: Colors.orange, fontSize: 11, fontWeight: FontWeight.bold),
+                                color: Colors.orange,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold),
                           ),
                         ),
                       Positioned(
@@ -389,7 +351,9 @@ class _CalorieSummaryDetailed extends ConsumerWidget {
                         child: Text(
                           "${totalNecessaire.toStringAsFixed(0)} kcal",
                           style: const TextStyle(
-                            color: Colors.red, fontSize: 11, fontWeight: FontWeight.bold),
+                              color: Colors.red,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold),
                         ),
                       ),
                     ],
@@ -402,18 +366,22 @@ class _CalorieSummaryDetailed extends ConsumerWidget {
                   alignment: Alignment.centerLeft,
                   child: TextButton.icon(
                     icon: const Icon(Icons.speed, size: 18), // icône "compteur"
-                    label: const Text(L10n.seeCalometre, style: TextStyle(fontSize: 13)),
+                    label: const Text(L10n.seeCalometre,
+                        style: TextStyle(fontSize: 13)),
                     style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 6),
                       minimumSize: const Size(0, 32),
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                     onPressed: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => const BejTrendsPage()));
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const BejTrendsPage()));
                     },
                   ),
                 )
-
               ],
             );
           },
@@ -423,13 +391,8 @@ class _CalorieSummaryDetailed extends ConsumerWidget {
   }
 }
 
-
-
-
-
-
 class _MacroDetailsDetailed extends ConsumerWidget {
-  const _MacroDetailsDetailed({super.key});
+  const _MacroDetailsDetailed();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -444,7 +407,7 @@ class _MacroDetailsDetailed extends ConsumerWidget {
       Colors.blue,
       Colors.purple
     ];
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -467,7 +430,9 @@ class _MacroDetailsDetailed extends ConsumerWidget {
                       case "Lipides":
                         final totalFat = consumed['Lipides'] ?? 0.0;
                         final saturatedFat = consumed['Saturés'] ?? 0.0;
-                        final percentage = totalFat > 0 ? (saturatedFat / totalFat) * 100 : 0.0;
+                        final percentage = totalFat > 0
+                            ? (saturatedFat / totalFat) * 100
+                            : 0.0;
                         return Text(
                           "Lipides : ${totalFat.toStringAsFixed(0)} g (${percentage.toStringAsFixed(0)}% sat.) / ${(needed['Lipides'] ?? 0).toStringAsFixed(0)} g",
                           style: const TextStyle(
@@ -478,8 +443,11 @@ class _MacroDetailsDetailed extends ConsumerWidget {
 
                       case "Glucides":
                         final totalCarbs = consumed['Glucides'] ?? 0.0;
-                        final totalSugars = consumed['Sucres'] ?? 0.0; // Assurez-vous que la clé "Sucres" existe
-                        final percentage = totalCarbs > 0 ? (totalSugars / totalCarbs) * 100 : 0.0;
+                        final totalSugars = consumed['Sucres'] ??
+                            0.0; // Assurez-vous que la clé "Sucres" existe
+                        final percentage = totalCarbs > 0
+                            ? (totalSugars / totalCarbs) * 100
+                            : 0.0;
                         return Text(
                           "Glucides : ${totalCarbs.toStringAsFixed(0)} g (${percentage.toStringAsFixed(0)}% sucres) / ${(needed['Glucides'] ?? 0).toStringAsFixed(0)} g",
                           style: const TextStyle(
@@ -507,15 +475,19 @@ class _MacroDetailsDetailed extends ConsumerWidget {
 
         // La légende des couleurs (inchangée)
         const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
+        Wrap(
+          spacing: 12,
+          runSpacing: 8,
           children: [
             for (int i = 0; i < repas.length; i++)
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(width: 12, height: 12, color: colorsRepas[i]),
                   const SizedBox(width: 4),
-                  Text(repas[i], style: const TextStyle(fontSize: 12)),
+                  Flexible(
+                      child:
+                          Text(repas[i], style: const TextStyle(fontSize: 12))),
                 ],
               ),
           ],
@@ -529,7 +501,7 @@ class _MacroDetailsDetailed extends ConsumerWidget {
 // ===========================================================================
 
 class _ExpandableNutritionSection extends ConsumerStatefulWidget {
-  const _ExpandableNutritionSection({super.key});
+  const _ExpandableNutritionSection();
 
   @override
   ConsumerState<_ExpandableNutritionSection> createState() =>
@@ -563,7 +535,8 @@ class _ExpandableNutritionSectionState
                 Align(
                   alignment: Alignment.center,
                   child: IconButton(
-                    icon: const Icon(Icons.expand_more, color: Colors.blueGrey, size: 28),
+                    icon: const Icon(Icons.expand_more,
+                        color: Colors.blueGrey, size: 28),
                     tooltip: "Afficher le détail des calories",
                     onPressed: () {
                       setState(() {
@@ -600,15 +573,16 @@ class _ExpandableNutritionSectionState
 
         // --- Le graphique détaillé des macros ---
         const _MacroDetailsDetailed(),
-        
+
         // --- Les listes d'aliments ont été retirées d'ici ---
-        
+
         // --- Flèche "Replier" ---
         const SizedBox(height: 12),
         Align(
           alignment: Alignment.center,
           child: IconButton(
-            icon: const Icon(Icons.expand_less, color: Colors.blueGrey, size: 28),
+            icon:
+                const Icon(Icons.expand_less, color: Colors.blueGrey, size: 28),
             tooltip: "Replier",
             onPressed: () {
               setState(() {
@@ -627,7 +601,6 @@ class _ExpandableNutritionSectionState
 // == VERS `food_analysis_section.dart`
 // ===========================================================================
 
-
 class _MacroBreakdownBar extends ConsumerWidget {
   final String macro;
   const _MacroBreakdownBar({required this.macro});
@@ -637,7 +610,7 @@ class _MacroBreakdownBar extends ConsumerWidget {
     // On récupère les données
     final macrosPerMealType =
         ref.watch(dashboardProvider.select((s) => s.macrosPerMealType));
-    
+
     final macroMap = macrosPerMealType[macro] ?? {};
     final totalMacro = macroMap.values.fold(0.0, (a, b) => a + b);
     // Si le total est à zéro, on affiche une simple barre grise
@@ -650,7 +623,7 @@ class _MacroBreakdownBar extends ConsumerWidget {
         ),
       );
     }
-    
+
     final repas = ["Petit-déjeuner", "Déjeuner", "Dîner", "Collation"];
     final colorsRepas = [
       Colors.orange,
@@ -668,7 +641,7 @@ class _MacroBreakdownBar extends ConsumerWidget {
           children: List.generate(repas.length, (i) {
             final repasName = repas[i];
             final value = macroMap[repasName] ?? 0;
-            
+
             // Le `flex` détermine la proportion de chaque segment.
             // On utilise la valeur du macro directement.
             return Expanded(
@@ -684,24 +657,19 @@ class _MacroBreakdownBar extends ConsumerWidget {
   }
 }
 
-
-
 class _AiAnalysisCard extends ConsumerWidget {
-  const _AiAnalysisCard({super.key});
+  const _AiAnalysisCard();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final status = ref.watch(dashboardProvider.select((s) => s.analysisStatus));
-    final isWeekly = ref.watch(dashboardProvider.select((s) => s.isWeeklyAnalysis));
+    final isWeekly =
+        ref.watch(dashboardProvider.select((s) => s.isWeeklyAnalysis));
 
     // ✅ Présence d’analyses (jour/semaine)
     final hasDaily = ref.watch(dashboardProvider.select(
       (s) => s.aiAnalysis.trim().isNotEmpty,
     ));
-    final hasWeekly = ref.watch(dashboardProvider.select(
-      (s) => s.weeklyAiAnalysis.trim().isNotEmpty,
-    ));
-
     final analysisText = ref.watch(dashboardProvider.select(
       (s) => s.isWeeklyAnalysis ? s.weeklyAiAnalysis : s.aiAnalysis,
     ));
@@ -714,42 +682,42 @@ class _AiAnalysisCard extends ConsumerWidget {
 
     // ───────────────── Header (contrôles) ─────────────────
     final controls = Card(
-  elevation: 2,
-  child: Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-    child: Row(
-      children: [
-        // 🧠 Titre (flexible → évite overflow)
-        Expanded(
-          child: Text(
-            "🤖 Analyse IA",
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(fontWeight: FontWeight.bold),
-          ),
-        ),
-
-        const SizedBox(width: 12),
-
-        // ===== MODE JOUR =====
-        const Text("Jour"),
-        AnimatedOpacity(
-          opacity: hasDaily ? 1.0 : 0.0,
-          duration: const Duration(milliseconds: 400),
-          child: const Padding(
-            padding: EdgeInsets.only(left: 6),
-            child: Icon(
-              Icons.check_circle,
-              color: Colors.green,
-              size: 18,
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: [
+            // 🧠 Titre (flexible → évite overflow)
+            Expanded(
+              child: Text(
+                "🤖 Analyse IA",
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
             ),
-          ),
-        ),
 
-        /*
+            const SizedBox(width: 12),
+
+            // ===== MODE JOUR =====
+            const Text("Jour"),
+            AnimatedOpacity(
+              opacity: hasDaily ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 400),
+              child: const Padding(
+                padding: EdgeInsets.only(left: 6),
+                child: Icon(
+                  Icons.check_circle,
+                  color: Colors.green,
+                  size: 18,
+                ),
+              ),
+            ),
+
+            /*
         // ===== SWITCH + MODE SEMAINE (désactivé pour l’instant) =====
 
         const SizedBox(width: 8),
@@ -773,15 +741,15 @@ class _AiAnalysisCard extends ConsumerWidget {
           ),
         ),
         */
-      ],
-    ),
-  ),
-);
-
+          ],
+        ),
+      ),
+    );
 
     // ───────────────── Corps (carte + bouton) ─────────────────
     final noAnalysisYet = analysisText.trim().isEmpty;
-    final showLaunchButton = (noAnalysisYet || status == ViewStatus.failure) && status != ViewStatus.loading;
+    final showLaunchButton = (noAnalysisYet || status == ViewStatus.failure) &&
+        status != ViewStatus.loading;
 
     Widget body;
 
@@ -843,8 +811,6 @@ class _AiAnalysisCard extends ConsumerWidget {
   }
 }
 
-
-
 class _StravaActivitiesList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -877,7 +843,8 @@ class _StravaActivitiesList extends ConsumerWidget {
                 if (uid == null) {
                   // Optionnel mais propre : éviter un crash si non connecté Firebase
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Veuillez vous connecter d'abord.")),
+                    const SnackBar(
+                        content: Text("Veuillez vous connecter d'abord.")),
                   );
                   return;
                 }
@@ -919,82 +886,33 @@ class _StravaActivitiesList extends ConsumerWidget {
   }
 }
 
-
 // ===========================================================================
 // == LES WIDGETS SECTIONTITLE ET CARDSHELL ONT ÉTÉ DÉPLACÉS
 // == VERS `food_analysis_section.dart`
 // ===========================================================================
 
-
 class _HeroCaloriesCard extends ConsumerWidget {
-  const _HeroCaloriesCard({super.key});
+  const _HeroCaloriesCard();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final consumed = ref.watch(dashboardProvider.select((s) => (s.consumedMacros['Calories'] ?? 0).toDouble()));
-    final needed   = ref.watch(dashboardProvider.select((s) => (s.macroNeeds['Calories'] ?? 0).toDouble()));
-    final progress = (needed > 0) ? (consumed / needed).clamp(0.0, 1.0) : 0.0;
+    final consumed = ref.watch(dashboardProvider
+        .select((s) => (s.consumedMacros['Calories'] ?? 0).toDouble()));
+    final needed = ref.watch(dashboardProvider
+        .select((s) => (s.macroNeeds['Calories'] ?? 0).toDouble()));
 
-    // On utilise le widget public `CardShell`
-    return CardShell(
-      padding: const EdgeInsets.all(20),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF4B49D1), Color(0xFF26256B)],
-            begin: Alignment.topLeft, end: Alignment.bottomRight),
-          borderRadius: BorderRadius.circular(18),
-        ),
-        padding: const EdgeInsets.all(18),
-        child: Row(
-          children: [
-            const Icon(Icons.local_fire_department_rounded, color: Colors.white, size: 32),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('${consumed.toStringAsFixed(0)} kcal',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: Colors.white, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
-                  const SizedBox(height: 4),
-                  Text('consommées · Objectif : ${needed.toStringAsFixed(0)} kcal',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.white.withOpacity(0.9))),
-                ],
-              ),
-            ),
-            SizedBox(
-              height: 60, width: 60,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  CircularProgressIndicator(
-                    value: progress, strokeWidth: 8,
-                    backgroundColor: Colors.white.withOpacity(0.18),
-                    valueColor: const AlwaysStoppedAnimation(Color(0xFF00C896)),
-                  ),
-                  Center(
-                    child: Text('${(progress*100).round()}%',
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: Colors.white, fontWeight: FontWeight.bold)),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    return ReportEnergyCard(consumed: consumed, needed: needed);
   }
 }
+
 class _NutritionSummaryCard extends ConsumerWidget {
-  const _NutritionSummaryCard({super.key});
+  const _NutritionSummaryCard();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final consumed = ref.watch(dashboardProvider.select((s) => s.consumedMacros));
-    final needs    = ref.watch(dashboardProvider.select((s) => s.macroNeeds));
+    final consumed =
+        ref.watch(dashboardProvider.select((s) => s.consumedMacros));
+    final needs = ref.watch(dashboardProvider.select((s) => s.macroNeeds));
 
     Widget row(String label, IconData icon, Color color) {
       final val = (consumed[label] ?? 0).toDouble();
@@ -1010,16 +928,26 @@ class _NutritionSummaryCard extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(children: [
-                  Expanded(child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700))),
-                  Text('${val.toStringAsFixed(0)}$unit / ${goal.toStringAsFixed(0)}$unit',
-                      style: const TextStyle(fontSize: 12, color: Colors.black54)),
-                ]),
+                Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    alignment: WrapAlignment.spaceBetween,
+                    children: [
+                      Text(label,
+                          style: const TextStyle(fontWeight: FontWeight.w700)),
+                      Text(
+                          '${val.toStringAsFixed(0)}$unit / ${goal.toStringAsFixed(0)}$unit',
+                          style: const TextStyle(
+                              fontSize: 12, color: Colors.black54)),
+                    ]),
                 const SizedBox(height: 8),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(10),
                   child: LinearProgressIndicator(
-                    value: ratio, minHeight: 10, color: color, backgroundColor: const Color(0xFFEAECEF),
+                    value: ratio,
+                    minHeight: 10,
+                    color: color,
+                    backgroundColor: const Color(0xFFEAECEF),
                   ),
                 ),
               ],
@@ -1033,55 +961,53 @@ class _NutritionSummaryCard extends ConsumerWidget {
     // Le _CardShell a été retiré. On retourne le Column directement.
     return Column(
       children: [
-        row('Protéines', Icons.eco_rounded, const Color(0xFF00C896)),
+        row('Protéines', Icons.eco_rounded, AppColors.green),
         const SizedBox(height: 12),
-        row('Glucides', Icons.bolt_rounded, const Color(0xFF2F80ED)),
+        row('Glucides', Icons.bolt_rounded, AppColors.orange),
         const SizedBox(height: 12),
-        row('Lipides', Icons.water_drop_rounded, const Color(0xFFFF9F43)),
+        row('Lipides', Icons.water_drop_rounded, AppColors.blue),
         const SizedBox(height: 12),
         row('Fibres', Icons.grass_rounded, const Color(0xFF7D5FFF)),
       ],
     );
   }
 }
+
 class _ActivityCompactCard extends ConsumerWidget {
-  const _ActivityCompactCard({super.key});
+  const _ActivityCompactCard();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final stravaCals = ref.watch(dashboardProvider.select((s) => (s.stravaCaloriesForDay).toDouble()));
+    final stravaCals = ref.watch(
+        dashboardProvider.select((s) => (s.stravaCaloriesForDay).toDouble()));
 
-    // === MODIFICATION ===
-    // On retourne la Row directement. Le _CardShell a été retiré
-    // car il est maintenant géré par _ExpandableActivitySection.
-    return Row(
-      children: [
-        const Icon(Icons.fitness_center_rounded),
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Row(children: [
+        const Icon(Icons.fitness_center_rounded, color: AppColors.green),
         const SizedBox(width: 10),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Entraînement du jour',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-              const SizedBox(height: 4),
-              Text(
-                stravaCals > 0
-                    ? 'Activité détectée : ${stravaCals.toStringAsFixed(0)} kcal'
-                    : 'Aucune activité détectée',
-                style: const TextStyle(color: Colors.black54),
-              ),
-            ],
-          ),
-        ),
-        TextButton.icon(
-          onPressed: () => Navigator.push(
-            context, MaterialPageRoute(builder: (_) => const TrainingPlannerPage())),
-          icon: const Icon(Icons.calendar_today, size: 18),
-          label: const Text('Planifier'),
-        )
-      ],
-    );
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Entraînement du jour',
+              style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 4),
+          Text(
+              stravaCals > 0
+                  ? 'Activité détectée : ${stravaCals.toStringAsFixed(0)} kcal'
+                  : 'Aucune activité détectée',
+              style: Theme.of(context).textTheme.bodyMedium),
+        ])),
+      ]),
+      const SizedBox(height: 8),
+      Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const TrainingPlannerPage())),
+            icon: const Icon(Icons.calendar_today_outlined),
+            label: const Text('Planifier'),
+          )),
+    ]);
   }
 }
 // ===========================================================================
@@ -1089,7 +1015,7 @@ class _ActivityCompactCard extends ConsumerWidget {
 // ===========================================================================
 
 class _ExpandableMealSection extends ConsumerStatefulWidget {
-  const _ExpandableMealSection({super.key});
+  const _ExpandableMealSection();
 
   @override
   ConsumerState<_ExpandableMealSection> createState() =>
@@ -1100,7 +1026,7 @@ class _ExpandableMealSection extends ConsumerStatefulWidget {
 // ===========================================================================
 
 class _ExpandableActivitySection extends ConsumerStatefulWidget {
-  const _ExpandableActivitySection({super.key});
+  const _ExpandableActivitySection();
 
   @override
   ConsumerState<_ExpandableActivitySection> createState() =>
@@ -1134,7 +1060,8 @@ class _ExpandableActivitySectionState
                 Align(
                   alignment: Alignment.center,
                   child: IconButton(
-                    icon: const Icon(Icons.expand_more, color: Colors.blueGrey, size: 28),
+                    icon: const Icon(Icons.expand_more,
+                        color: Colors.blueGrey, size: 28),
                     tooltip: "Afficher les activités Strava",
                     onPressed: () {
                       setState(() {
@@ -1171,13 +1098,14 @@ class _ExpandableActivitySectionState
 
         // --- La liste Strava (maintenant sans son titre) ---
         _StravaActivitiesList(),
-        
+
         // --- Flèche "Replier" ---
         const SizedBox(height: 12),
         Align(
           alignment: Alignment.center,
           child: IconButton(
-            icon: const Icon(Icons.expand_less, color: Colors.blueGrey, size: 28),
+            icon:
+                const Icon(Icons.expand_less, color: Colors.blueGrey, size: 28),
             tooltip: "Replier",
             onPressed: () {
               setState(() {
@@ -1191,7 +1119,8 @@ class _ExpandableActivitySectionState
   }
 }
 
-class _ExpandableMealSectionState extends ConsumerState<_ExpandableMealSection> {
+class _ExpandableMealSectionState
+    extends ConsumerState<_ExpandableMealSection> {
   bool _isExpanded = false;
 
   // --- Helpers copiés depuis _MealCalorieBreakdown ---
@@ -1214,7 +1143,8 @@ class _ExpandableMealSectionState extends ConsumerState<_ExpandableMealSection> 
     }
   }
 
-  void _openMealInput(String repas, DashboardState state, DashboardNotifier notifier) {
+  void _openMealInput(
+      String repas, DashboardState state, DashboardNotifier notifier) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -1233,14 +1163,9 @@ class _ExpandableMealSectionState extends ConsumerState<_ExpandableMealSection> 
     return Column(
       children: [
         // --- 1. Le Titre avec l'icône pour déplier ---
-        const Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            // On utilise le widget public `SectionTitle`
-            SectionTitle('Répartition des repas'),
-            // Le IconButton a été retiré d'ici
-          ],
-        ),
+        const Align(
+            alignment: Alignment.centerLeft,
+            child: SectionTitle('Répartition des repas')),
         const SizedBox(height: 10),
 
         // --- 2. Le NOUVEAU CONTENEUR (fond blanc) ---
@@ -1255,7 +1180,8 @@ class _ExpandableMealSectionState extends ConsumerState<_ExpandableMealSection> 
                 Align(
                   alignment: Alignment.center,
                   child: IconButton(
-                    icon: const Icon(Icons.expand_more, color: Colors.blueGrey, size: 28),
+                    icon: const Icon(Icons.expand_more,
+                        color: Colors.blueGrey, size: 28),
                     tooltip: "Afficher la répartition détaillée",
                     onPressed: () {
                       setState(() {
@@ -1270,8 +1196,9 @@ class _ExpandableMealSectionState extends ConsumerState<_ExpandableMealSection> 
                 curve: Curves.easeInOut,
                 child: Container(
                   // Le 'if' contrôle si le contenu est construit ou non
-                  child:
-                      _isExpanded ? _buildExpandedContent() : const SizedBox.shrink(),
+                  child: _isExpanded
+                      ? _buildExpandedContent()
+                      : const SizedBox.shrink(),
                 ),
               ),
             ],
@@ -1363,7 +1290,8 @@ class _ExpandableMealSectionState extends ConsumerState<_ExpandableMealSection> 
             final consommeKcal = (consumedPerMeal[repas] ?? 0).toDouble();
             final ratioConsomme =
                 totalConsumedKcal > 0 ? consommeKcal / totalConsumedKcal : 0.0;
-            final widthConsomme = (maxWidth * ratioConsomme).clamp(0.0, maxWidth);
+            final widthConsomme =
+                (maxWidth * ratioConsomme).clamp(0.0, maxWidth);
 
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -1374,10 +1302,11 @@ class _ExpandableMealSectionState extends ConsumerState<_ExpandableMealSection> 
                   children: [
                     Row(
                       children: [
-                        Text(
+                        Expanded(
+                            child: Text(
                           "$repas (${consommeKcal.toStringAsFixed(0)} / ${theoriqueKcal.toStringAsFixed(0)} kcal)",
                           style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
+                        )),
                         const SizedBox(width: 8),
                         const Icon(Icons.add_circle_outline,
                             size: 18, color: Colors.blueGrey),
@@ -1389,7 +1318,7 @@ class _ExpandableMealSectionState extends ConsumerState<_ExpandableMealSection> 
                       height: 24,
                       width: theoriqueWidth,
                       decoration: BoxDecoration(
-                        color: _getColorForRepas(repas).withOpacity(0.4),
+                        color: _getColorForRepas(repas).withValues(alpha: 0.4),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       alignment: Alignment.center,
@@ -1418,24 +1347,24 @@ class _ExpandableMealSectionState extends ConsumerState<_ExpandableMealSection> 
             );
           }),
           const SizedBox(height: 10),
-          // La légende
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(width: 14, height: 14, color: Colors.black.withOpacity(0.8)),
-              const SizedBox(width: 5),
-              const Text("Consommé"),
-              const SizedBox(width: 15),
-              Container(width: 14, height: 14, color: Colors.black.withOpacity(0.3)),
-              const SizedBox(width: 5),
-              const Text("Théorique"),
-            ],
-          ),
+          Wrap(spacing: 16, runSpacing: 8, children: [
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              Container(width: 14, height: 14, color: AppColors.green),
+              const SizedBox(width: 6),
+              const Flexible(child: Text('Consommé')),
+            ]),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              Container(width: 14, height: 14, color: AppColors.border),
+              const SizedBox(width: 6),
+              const Flexible(child: Text('Théorique')),
+            ]),
+          ]),
           const SizedBox(height: 12),
           Align(
             alignment: Alignment.center,
             child: IconButton(
-              icon: const Icon(Icons.expand_less, color: Colors.blueGrey, size: 28),
+              icon: const Icon(Icons.expand_less,
+                  color: Colors.blueGrey, size: 28),
               tooltip: "Replier",
               onPressed: () {
                 // On met à jour l'état (qui est géré par _ExpandableMealSectionState)
@@ -1452,7 +1381,7 @@ class _ExpandableMealSectionState extends ConsumerState<_ExpandableMealSection> 
 }
 
 class _MealsSplitCard extends ConsumerWidget {
-  const _MealsSplitCard({super.key});
+  const _MealsSplitCard();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1461,7 +1390,7 @@ class _MealsSplitCard extends ConsumerWidget {
     final kpm = state.caloriesPerMeal;
     final selectedDate = DateService.formatStandard(state.selectedDate);
 
-    Future<void> _open(String mealType) async {
+    Future<void> openMeal(String mealType) async {
       await Navigator.push(
         context,
         MaterialPageRoute(
@@ -1474,165 +1403,13 @@ class _MealsSplitCard extends ConsumerWidget {
       if (context.mounted) notifier.refreshDataAfterMealUpdate();
     }
 
-    Widget tile({
-      required IconData icon,
-      required String label,
-      required int kcal,
-      required double height,
-    }) {
-      return InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => _open(label),
-        child: Container(
-          height: height,
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF6F7F9),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
-          ),
-          child: Stack(
-            children: [
-              // Contenu centré
-              Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(icon, size: 22),
-                    const SizedBox(height: 8),
-                    Text(label,
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodySmall),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${kcal.toStringAsFixed(0)} kcal',
-                      style: Theme.of(context)
-                          .textTheme
-                          .labelMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                  ],
-                ),
-              ),
-              // + intégré dans le carré
-              Positioned(
-                top: 0,
-                right: 0,
-                child: SizedBox(
-                  width: 26,
-                  height: 26,
-                  child: Material(
-                    color: Colors.white,
-                    shape: const CircleBorder(),
-                    child: InkWell(
-                      customBorder: const CircleBorder(),
-                      onTap: () => _open(label),
-                      child: const Icon(Icons.add_rounded, size: 16, color: Colors.blueGrey),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    // Le LayoutBuilder est toujours là
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final w = constraints.maxWidth;
-        final cols = (w >= 720) ? 4 : 2;
-        const hSpacing = 12.0;
-        const vSpacing = 12.0;
-        final cardWidth = (w - hSpacing * (cols - 1)) / cols;
-        final cardHeight = 120.0; // hauteur stable et compacte
-
-        // === MODIFICATION ===
-        // On retourne la GridView directement.
-        // Le 'Container' avec le fond blanc a été retiré.
-        return GridView(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: cols,
-            crossAxisSpacing: hSpacing,
-            mainAxisSpacing: vSpacing,
-            childAspectRatio: cardWidth / cardHeight,
-          ),
-          children: [
-            tile(
-              icon: Icons.wb_sunny_rounded,
-              label: 'Petit-déjeuner',
-              kcal: (kpm['Petit-déjeuner'] ?? 0).toInt(),
-              height: cardHeight,
-            ),
-            tile(
-              icon: Icons.lunch_dining_rounded,
-              label: 'Déjeuner',
-              kcal: (kpm['Déjeuner'] ?? 0).toInt(),
-              height: cardHeight,
-            ),
-            tile(
-              icon: Icons.nightlight_round,
-              label: 'Dîner',
-              kcal: (kpm['Dîner'] ?? 0).toInt(),
-              height: cardHeight,
-            ),
-            tile(
-              icon: Icons.apple_rounded,
-              label: 'Collation',
-              kcal: (kpm['Collation'] ?? 0).toInt(),
-              height: cardHeight,
-            ),
-          ],
-        );
-      },
-    );
+    return MealDistributionTiles(caloriesPerMeal: kpm, onOpenMeal: openMeal);
   }
 }
 
-class _BottomNavBar extends StatelessWidget {
-  final int currentIndex;
-  final ValueChanged<int> onTap;
-  const _BottomNavBar({required this.currentIndex, required this.onTap, super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        boxShadow: [BoxShadow(color: Color(0x1A000000), blurRadius: 20, offset: Offset(0, -6))],
-      ),
-      child: ClipRRect(
-        borderRadius: const BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
-        child: NavigationBar(
-          height: 64,
-          selectedIndex: currentIndex,
-          onDestinationSelected: (i) {
-            switch (i) {
-              case 0: // Accueil
-                Navigator.popUntil(context, (route) => route.isFirst);
-                break;
-              case 1: // Profil (Index 1 maintenant)
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileFormPage()));
-                break;
-            }
-          },
-          backgroundColor: Colors.white,
-          indicatorColor: const Color(0x114B49D1),
-          destinations: const [
-            NavigationDestination(icon: Icon(Icons.home_rounded), label: 'Accueil'),
-            NavigationDestination(icon: Icon(Icons.person_rounded), label: 'Profil'),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-
+// ignore: unused_element
 class _AddMealPill extends ConsumerWidget {
-  const _AddMealPill({super.key});
+  const _AddMealPill();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1646,7 +1423,8 @@ class _AddMealPill extends ConsumerWidget {
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        builder: (_) => _QuickAddSheet(selectedDate: DateService.formatStandard(state.selectedDate)),
+        builder: (_) => _QuickAddSheet(
+            selectedDate: DateService.formatStandard(state.selectedDate)),
       );
     }
 
@@ -1659,7 +1437,7 @@ class _AddMealPill extends ConsumerWidget {
         icon: const Icon(Icons.add, size: 20),
         label: const Text("Saisir un repas"),
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF4B49D1),
+          backgroundColor: AppColors.green,
           foregroundColor: Colors.white,
           elevation: 8,
           shadowColor: const Color(0x29000000),
@@ -1672,13 +1450,13 @@ class _AddMealPill extends ConsumerWidget {
 
 class _QuickAddSheet extends ConsumerWidget {
   final String selectedDate;
-  const _QuickAddSheet({required this.selectedDate, super.key});
+  const _QuickAddSheet({required this.selectedDate});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final notifier = ref.read(dashboardProvider.notifier);
 
-    Future<void> _open(String mealType) async {
+    Future<void> openMeal(String mealType) async {
       await Navigator.push(
         context,
         MaterialPageRoute(
@@ -1695,37 +1473,45 @@ class _QuickAddSheet extends ConsumerWidget {
     }
 
     Widget chip(IconData icon, String label) => Expanded(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => _open(label),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF6F7F9),
+          child: InkWell(
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
+            onTap: () => openMeal(label),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF6F7F9),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 22),
+                  const SizedBox(height: 8),
+                  Text(label, style: const TextStyle(fontSize: 12)),
+                ],
+              ),
+            ),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 22),
-              const SizedBox(height: 8),
-              Text(label, style: const TextStyle(fontSize: 12)),
-            ],
-          ),
-        ),
-      ),
-    );
+        );
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(width: 36, height: 4, decoration: BoxDecoration(
-            color: Colors.black12, borderRadius: BorderRadius.circular(2))),
+          Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                  color: Colors.black12,
+                  borderRadius: BorderRadius.circular(2))),
           const SizedBox(height: 16),
-          Text("Ajouter un repas", style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+          Text("Ajouter un repas",
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w800)),
           const SizedBox(height: 16),
 
           Row(children: [
@@ -1744,13 +1530,14 @@ class _QuickAddSheet extends ConsumerWidget {
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: () => _open(''),
+              onPressed: () => openMeal(''),
               icon: const Icon(Icons.qr_code_scanner_rounded),
               label: const Text("Scanner un produit / code-barres"),
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 side: const BorderSide(color: Color(0xFFE5E7EB)),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
               ),
             ),
           ),

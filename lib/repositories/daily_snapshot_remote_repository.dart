@@ -50,10 +50,8 @@ class DailySnapshotRemoteRepository {
           .order('date', ascending: false)
           .limit(limit);
 
-      if (res is! List) return [];
-
       return res
-          .map((e) => DaySnapshot.fromJson(e as Map<String, dynamic>))
+          .map((e) => DaySnapshot.fromJson(e))
           .toList();
     } catch (e) {
       // ⚠️ idem : erreur réseau / RLS → on retourne vide

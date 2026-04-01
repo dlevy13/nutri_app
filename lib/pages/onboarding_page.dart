@@ -85,7 +85,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 child: Column(
                   children: [
                     Image.asset(
-                      "assets/icons/nutriWatt_logo.png",
+                      "assets/icons/nutriwatt_brand.png",
                       height: 100,
                     ),
 

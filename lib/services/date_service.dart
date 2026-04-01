@@ -1,9 +1,9 @@
 import 'package:intl/intl.dart';
+
 //refonte
 /// Service centralisé pour toutes les opérations liées aux dates.
 /// Compatible Hive, format interne unique : "yyyy-MM-dd".
 class DateService {
-
   // =======================================================================
   // == FORMATAGE
   // =======================================================================
@@ -99,15 +99,16 @@ class DateService {
   /// Convertit "week_2025-02-10" → "2025-02-10"
   /// (clé semaine envoyée au backend)
   static String toBackendWeekKey(String raw) {
-    return raw
-        .replaceAll("week_", "")
-        .replaceAll("/", "-");
+    return raw.replaceAll("week_", "").replaceAll("/", "-");
   }
 
   /// Convertit "11-02-2025" → "2025-02-11"
   /// (clé jour envoyée au backend)
   static String toBackendDayKey(String raw) {
     final cleaned = raw.replaceAll("/", "-");
+    final isoMatch = RegExp(r'^\d{4}-\d{2}-\d{2}$');
+    if (isoMatch.hasMatch(cleaned)) return cleaned;
+
     final parts = cleaned.split("-");
 
     if (parts.length != 3) return cleaned; // fallback

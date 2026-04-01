@@ -10,6 +10,7 @@ import '../models/daily_calories.dart';
 import '../repositories/daily_calories_repository.dart';
 import '../repositories/daily_snapshot_remote_repository.dart';
 import '../repositories/meal_repository.dart';
+import '../repositories/sport_product_repository.dart';
 import '../services/nutrition_snapshot_service.dart';
 
 // ✅ On définit le provider pour SharedPreferences ICI et nulle part ailleurs.
@@ -45,6 +46,9 @@ final dailySnapshotRemoteRepositoryProvider =
 final mealRepositoryProvider = Provider<MealRepository>((ref) {
   final box = ref.watch(mealBoxProvider);
   return MealRepository(box);
+});
+final sportProductRepositoryProvider = Provider<SportProductRepository>((ref) {
+  return SportProductRepository(Supabase.instance.client);
 });
 final nutritionSnapshotServiceProvider =
     Provider<NutritionSnapshotService>((ref) {

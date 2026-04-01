@@ -4,17 +4,17 @@ import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
 
 class ProviderInjector {
-  static List<SingleChildWidget> providers = [
+  static final List<SingleChildWidget> providers = [
     ..._independentServices,
     ..._dependentServices,
     ..._consumableServices,
   ];
 
-  static List<SingleChildWidget> _independentServices = [
+  static final List<SingleChildWidget> _independentServices = [
     Provider.value(value: locator<NavigatorService>()),
   ];
 
-  static List<SingleChildWidget> _dependentServices = [];
+  static final List<SingleChildWidget> _dependentServices = [];
 
-  static List<SingleChildWidget> _consumableServices = [];
+  static final List<SingleChildWidget> _consumableServices = [];
 }

@@ -35,7 +35,7 @@ class _LoginPageState extends State<LoginPage> {
       final supabase = Supabase.instance.client;
       final email = emailController.text.trim();
       final password = passwordController.text.trim();
-      final res = await supabase.auth.signInWithPassword(
+      await supabase.auth.signInWithPassword(
         email: email,
         password: password,
       );

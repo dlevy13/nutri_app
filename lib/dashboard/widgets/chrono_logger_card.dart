@@ -1,6 +1,5 @@
-/// Ce widget lit les entraînements pour afficher les bons boutons de saisie
-/// ET affiche également les blocs d'entraînement.
-// 
+// Ce widget lit les entraînements pour afficher les bons boutons de saisie
+// et affiche également les blocs d'entraînement.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -8,7 +7,8 @@ import 'package:intl/intl.dart';
 import '../../../services/date_service.dart';
 import '../../widget/card_shell.dart';
 import '../../widget/section_title.dart';
-import '../../meal_input/meal_input_page.dart'; 
+import '../../ui/theme/app_theme.dart';
+import '../../meal_input/meal_input_page.dart';
 import '../dashboard_notifier.dart';
 import '../../../models/meal.dart';
 
@@ -66,89 +66,110 @@ class ChronoLoggerCard extends ConsumerWidget {
       },
     ];
 
-    // 4) Ajout des slots "Récupération (Post-effort)" -> type de repas "Activité"
+    // 4) Ajout des slots activité -> type de repas "Activité"
     final activityBlockItems = <Map<String, dynamic>>[];
-{
-  // On trie les activités par heure de début pour donner un groupId stable
-  final actsSorted = [...activities]..sort((a, b) {
-    final sa = DateTime.parse((a['start_date_local'] as String? ?? '').replaceAll('Z', ''));
-    final sb = DateTime.parse((b['start_date_local'] as String? ?? '').replaceAll('Z', ''));
-    return sa.compareTo(sb);
-  });
+    {
+      // On trie les activités par heure de début pour donner un groupId stable
+      final actsSorted = [...activities]..sort((a, b) {
+          final sa = DateTime.parse(
+              (a['start_date_local'] as String? ?? '').replaceAll('Z', ''));
+          final sb = DateTime.parse(
+              (b['start_date_local'] as String? ?? '').replaceAll('Z', ''));
+          return sa.compareTo(sb);
+        });
 
-  for (var i = 0; i < actsSorted.length; i++) {
-    final act = actsSorted[i];
-    final startIso = (act['start_date_local'] as String? ?? '').replaceAll('Z', '');
-    final start = DateTime.parse(startIso);
-    final durationSec = (act['elapsed_time'] as num?)?.toDouble() ?? 0.0;
-    final end = start.add(Duration(seconds: durationSec.toInt()));
-    final postRecovery = end.add(const Duration(minutes: 30));
+      for (var i = 0; i < actsSorted.length; i++) {
+        final act = actsSorted[i];
+        final startIso =
+            (act['start_date_local'] as String? ?? '').replaceAll('Z', '');
+        final start = DateTime.parse(startIso);
+        final durationSec = (act['elapsed_time'] as num?)?.toDouble() ?? 0.0;
+        final end = start.add(Duration(seconds: durationSec.toInt()));
+        final duringEffort =
+            start.add(Duration(seconds: (durationSec / 2).round()));
+        final postRecovery = end.add(const Duration(minutes: 30));
 
-    // Item "activité" (affiché avec l’heure)
-    activityBlockItems.add({
-      'type': 'activity_display',
-      'time': start,                  // heure réelle de l’activité (affichage)
-      'blockTime': start,             // clé de tri du bloc
-      'groupId': i,                   // identifiant du bloc
-      'groupOrder': 0,                // activité avant récupération
-      'data': act,
-    });
+        // Item "activité" (affiché avec l’heure)
+        activityBlockItems.add({
+          'type': 'activity_display',
+          'time': start, // heure réelle de l’activité (affichage)
+          'blockTime': start, // clé de tri du bloc
+          'groupId': i, // identifiant du bloc
+          'groupOrder': 0, // activité avant récupération
+          'data': act,
+        });
 
-    // Item "récupération" (slot de saisie)
-    activityBlockItems.add({
-      'type': 'log_slot',
-      'time': postRecovery,           // timestamp réel pour la saisie
-      'blockTime': start,             // **clé de tri du bloc = début activité**
-      'groupId': i,                   // même bloc
-      'groupOrder': 1,                // après l’activité
-      'label': 'Récupération (Post-effort)',
-      'mealType': 'Activité',
-      'icon': Icons.healing_rounded,
-    });
-  }
-  }
+        // Item "pendant l'effort" (slot de saisie)
+        activityBlockItems.add({
+          'type': 'log_slot',
+          'time': duringEffort, // timestamp réel pour la saisie
+          'blockTime': start, // **clé de tri du bloc = début activité**
+          'groupId': i, // même bloc
+          'groupOrder': 1, // après l’activité
+          'label': "Pendant l'effort",
+          'mealTimestamp': duringEffort.toIso8601String(),
+          'mealType': 'Activité',
+          'icon': Icons.bolt_rounded,
+        });
 
+        // Item "post effort" (slot de saisie)
+        activityBlockItems.add({
+          'type': 'log_slot',
+          'time': postRecovery, // timestamp réel pour la saisie
+          'blockTime': start, // **clé de tri du bloc = début activité**
+          'groupId': i, // même bloc
+          'groupOrder': 2, // après le slot pendant l'effort
+          'label': 'Post effort',
+          'mealTimestamp': postRecovery.toIso8601String(),
+          'mealType': 'Activité',
+          'icon': Icons.healing_rounded,
+        });
+      }
+    }
 
     // 5) Fusion & tri (Petit-déj toujours avant toute activité du matin)
     final timeline = <Map<String, dynamic>>[
-  ...baseSlots.map((m) => {
-        ...m,
-        'blockTime': m['time'],       // les slots "simples" se trient sur leur propre heure
-        'groupId': null,
-        'groupOrder': 0,
-      }),
-  ...activityBlockItems,              // déjà "groupés"
-]..sort((a, b) {
-    final taBlock = a['blockTime'] as DateTime;
-    final tbBlock = b['blockTime'] as DateTime;
+      ...baseSlots.map((m) => {
+            ...m,
+            'blockTime': m[
+                'time'], // les slots "simples" se trient sur leur propre heure
+            'groupId': null,
+            'groupOrder': 0,
+          }),
+      ...activityBlockItems, // déjà "groupés"
+    ]..sort((a, b) {
+        final taBlock = a['blockTime'] as DateTime;
+        final tbBlock = b['blockTime'] as DateTime;
 
-    // Règle spéciale : Petit-déj avant toute activité < 12:00
-    final aIsBreakfast = a['type'] == 'log_slot' && (a['mealType'] == 'Petit-déjeuner');
-    final bIsBreakfast = b['type'] == 'log_slot' && (b['mealType'] == 'Petit-déjeuner');
-    final bIsMorningActBlock = b['groupId'] != null && tbBlock.hour < 12;
-    final aIsMorningActBlock = a['groupId'] != null && taBlock.hour < 12;
+        // Règle spéciale : Petit-déj avant toute activité < 12:00
+        final aIsBreakfast =
+            a['type'] == 'log_slot' && (a['mealType'] == 'Petit-déjeuner');
+        final bIsBreakfast =
+            b['type'] == 'log_slot' && (b['mealType'] == 'Petit-déjeuner');
+        final bIsMorningActBlock = b['groupId'] != null && tbBlock.hour < 12;
+        final aIsMorningActBlock = a['groupId'] != null && taBlock.hour < 12;
 
-    if (aIsBreakfast && bIsMorningActBlock) return -1;
-    if (bIsBreakfast && aIsMorningActBlock) return 1;
+        if (aIsBreakfast && bIsMorningActBlock) return -1;
+        if (bIsBreakfast && aIsMorningActBlock) return 1;
 
-    // 1) Trier par "blockTime" (début d’activité pour les blocs, heure du slot sinon)
-    final cmpBlock = taBlock.compareTo(tbBlock);
-    if (cmpBlock != 0) return cmpBlock;
+        // 1) Trier par "blockTime" (début d’activité pour les blocs, heure du slot sinon)
+        final cmpBlock = taBlock.compareTo(tbBlock);
+        if (cmpBlock != 0) return cmpBlock;
 
-    // 2) Si on est dans le même bloc activité → imposer activité (0) avant récup (1)
-    final ga = a['groupId'];
-    final gb = b['groupId'];
-    if (ga != null && gb != null && ga == gb) {
-      final oa = a['groupOrder'] as int;
-      final ob = b['groupOrder'] as int;
-      return oa.compareTo(ob);
-    }
+        // 2) Si on est dans le même bloc activité → imposer activité (0) avant récup (1)
+        final ga = a['groupId'];
+        final gb = b['groupId'];
+        if (ga != null && gb != null && ga == gb) {
+          final oa = a['groupOrder'] as int;
+          final ob = b['groupOrder'] as int;
+          return oa.compareTo(ob);
+        }
 
-    // 3) Sinon : log_slot avant activity_display si heure bloc identique (cohérence UI)
-    final ra = a['type'] == 'log_slot' ? 0 : 1;
-    final rb = b['type'] == 'log_slot' ? 0 : 1;
-    return ra.compareTo(rb);
-});
+        // 3) Sinon : log_slot avant activity_display si heure bloc identique (cohérence UI)
+        final ra = a['type'] == 'log_slot' ? 0 : 1;
+        final rb = b['type'] == 'log_slot' ? 0 : 1;
+        return ra.compareTo(rb);
+      });
 
     // 6) Vue (anti-overflow)
     return CardShell(
@@ -157,14 +178,19 @@ class ChronoLoggerCard extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SectionTitle('📅 Saisie Chrono-Nutrition'),
+          const SectionTitle('Repas & entraînements'),
           const SizedBox(height: 16),
           ...timeline.map((item) {
             if (item['type'] == 'log_slot') {
               final slotTime = item['time'] as DateTime;
-              final label = item['label'] as String;       // affichage
+              final label = item['label'] as String; // affichage
               final mealType = item['mealType'] as String; // logique
-              final mealsForThisSlot = loggedMeals.where((m) => m.type == mealType).toList();
+              final mealTimestamp = item['mealTimestamp'] as String?;
+              final mealsForThisSlot = loggedMeals.where((m) {
+                if (m.type != mealType) return false;
+                if (mealTimestamp == null) return true;
+                return m.timestamp == mealTimestamp;
+              }).toList();
 
               return _buildLogSlot(
                 context: context,
@@ -172,7 +198,7 @@ class ChronoLoggerCard extends ConsumerWidget {
                 label: label,
                 icon: item['icon'] as IconData,
                 timestampToLog: slotTime,
-                mealType: mealType,              // <- "Activité" pour post-effort
+                mealType: mealType, // <- "Activité" pour post-effort
                 mealsInSlot: mealsForThisSlot,
               );
             }
@@ -200,7 +226,8 @@ class ChronoLoggerCard extends ConsumerWidget {
     required Map<String, dynamic> activityData,
   }) {
     final theme = Theme.of(context);
-    final durationSec = (activityData['elapsed_time'] as num?)?.toDouble() ?? 0.0;
+    final durationSec =
+        (activityData['elapsed_time'] as num?)?.toDouble() ?? 0.0;
     final durationMin = durationSec / 60;
     final calories = (activityData['calories'] as num?)?.toDouble() ?? 0.0;
     final name = activityData['name'] as String? ?? 'Entraînement';
@@ -209,9 +236,9 @@ class ChronoLoggerCard extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.orange.withOpacity(0.1),
+        color: Colors.orange.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.orange.withOpacity(0.3)),
+        border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
@@ -221,7 +248,8 @@ class ChronoLoggerCard extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('$timeStr - $name',
+                Text(
+                  '$timeStr - $name',
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: Colors.orange.shade900,
@@ -230,7 +258,8 @@ class ChronoLoggerCard extends ConsumerWidget {
                 const SizedBox(height: 4),
                 Text(
                   '${durationMin.toStringAsFixed(0)} min / ${calories.toStringAsFixed(0)} kcal',
-                  style: theme.textTheme.bodyMedium?.copyWith(color: Colors.orange.shade800),
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(color: Colors.orange.shade800),
                 ),
               ],
             ),
@@ -245,10 +274,10 @@ class ChronoLoggerCard extends ConsumerWidget {
   Widget _buildLogSlot({
     required BuildContext context,
     required DashboardNotifier notifier,
-    required String label,            // affichage
+    required String label, // affichage
     required IconData icon,
     required DateTime timestampToLog, // on garde l'horodatage pour la saisie
-    required String mealType,         // logique (ex. "Activité" pour post-effort)
+    required String mealType, // logique (ex. "Activité" pour post-effort)
     required List<Meal> mealsInSlot,
   }) {
     return InkWell(
@@ -258,7 +287,7 @@ class ChronoLoggerCard extends ConsumerWidget {
           MaterialPageRoute(
             builder: (_) => MealInputPage(
               selectedDate: DateService.formatStandard(timestampToLog),
-              mealType: mealType,            // <- important : type logique
+              mealType: mealType, // <- important : type logique
               fullTimestamp: timestampToLog,
             ),
           ),
@@ -268,7 +297,8 @@ class ChronoLoggerCard extends ConsumerWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
         decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: Colors.grey.shade200, width: 1.0)),
+          border:
+              Border(bottom: BorderSide(color: AppColors.border, width: 1.0)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -277,11 +307,13 @@ class ChronoLoggerCard extends ConsumerWidget {
             // Ligne titre (sans heure)
             Row(
               children: [
-                Icon(icon, size: 20, color: Colors.blueGrey),
+                Icon(icon, size: 20, color: AppColors.green),
                 const SizedBox(width: 8),
-                Expanded(child: Text(label, style: Theme.of(context).textTheme.bodyLarge)),
+                Expanded(
+                    child: Text(label,
+                        style: Theme.of(context).textTheme.bodyLarge)),
                 const SizedBox(width: 8),
-                const Icon(Icons.chevron_right_rounded, color: Colors.blueGrey),
+                const Icon(Icons.chevron_right_rounded, color: AppColors.green),
               ],
             ),
 
@@ -306,7 +338,8 @@ class ChronoLoggerCard extends ConsumerWidget {
       padding: const EdgeInsets.only(left: 28.0, top: 8, right: 8.0),
       child: Text(
         "${totalKcal.toStringAsFixed(0)} kcal (P: ${totalProt.toStringAsFixed(0)}g  G: ${totalCarb.toStringAsFixed(0)}g  L: ${totalFat.toStringAsFixed(0)}g)",
-        style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.w500),
+        style: const TextStyle(
+            fontSize: 12, color: Colors.black54, fontWeight: FontWeight.w500),
         overflow: TextOverflow.ellipsis,
       ),
     );

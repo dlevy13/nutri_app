@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 class FoodListItem extends StatelessWidget {
@@ -19,11 +18,11 @@ class FoodListItem extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4.0),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 2,
-      child: InkWell( // InkWell pour un effet visuel au clic
+      elevation: 0,
+      child: InkWell(
+        // InkWell pour un effet visuel au clic
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(24),
         child: Padding(
           padding: const EdgeInsets.all(12.0),
           child: Row(
@@ -31,7 +30,7 @@ class FoodListItem extends StatelessWidget {
               Icon(
                 Icons.restaurant_menu_outlined,
                 color: theme.colorScheme.primary,
-                size: 30,
+                size: 24,
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -39,12 +38,12 @@ class FoodListItem extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(title, style: theme.textTheme.titleMedium),
-                    Text(subtitle, style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey.shade600)),
+                    Text(subtitle, style: theme.textTheme.bodyMedium),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
-              Icon(Icons.add_circle_outline, color: theme.colorScheme.secondary),
+              Icon(Icons.add_circle_outline, color: theme.colorScheme.primary),
             ],
           ),
         ),

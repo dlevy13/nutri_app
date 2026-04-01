@@ -2,7 +2,6 @@
 
 import 'package:flutter/material.dart';
 import '../models/meal.dart';
-import '../services/fonctions.dart'; // Pour l'extension .cap()
 
 class AddedFoodTile extends StatelessWidget {
   final Meal meal;
@@ -35,8 +34,8 @@ class AddedFoodTile extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(10),
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: cs.outlineVariant),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -53,11 +52,11 @@ class AddedFoodTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      meal.name.cap(max: 30),
+                      meal.name,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       softWrap: true,
-                      style: theme.textTheme.bodySmall,
+                      style: theme.textTheme.titleMedium,
                     ),
                     const SizedBox(height: 2),
                     Wrap(
@@ -68,7 +67,8 @@ class AddedFoodTile extends StatelessWidget {
                         Text("${kcal.toStringAsFixed(0)} kcal",
                             style: theme.textTheme.bodySmall
                                 ?.copyWith(color: cs.onSurfaceVariant)),
-                        _MiniBadge(text: "P ${meal.protein.toStringAsFixed(0)}g"),
+                        _MiniBadge(
+                            text: "P ${meal.protein.toStringAsFixed(0)}g"),
                         _MiniBadge(text: "G ${meal.carbs.toStringAsFixed(0)}g"),
                         _MiniBadge(text: "L ${meal.fat.toStringAsFixed(0)}g"),
                       ],
@@ -85,7 +85,10 @@ class AddedFoodTile extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Divider(height: 12, thickness: 0.6, color: cs.outlineVariant),
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               _RoundIconSmall(
                 onTap: () {
@@ -106,7 +109,6 @@ class AddedFoodTile extends StatelessWidget {
                 bg: cs.primary,
                 fg: cs.onPrimary,
               ),
-              const Spacer(),
               Text(
                 label != null
                     ? "$units $label${units > 1 ? 's' : ''} (~${qty.toStringAsFixed(0)} g)"
@@ -128,27 +130,25 @@ class _RoundIconSmall extends StatelessWidget {
   final IconData icon;
   final Color bg;
   final Color fg;
-  final double size;
 
   const _RoundIconSmall({
     required this.onTap,
     required this.icon,
     required this.bg,
     required this.fg,
-    this.size = 28,
   });
 
   @override
   Widget build(BuildContext context) {
-    return InkResponse(
-      onTap: onTap,
-      radius: size / 2 + 2,
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
-        child: Icon(icon, color: fg, size: size * 0.6),
-      ),
+    return IconButton.filled(
+      onPressed: onTap,
+      tooltip:
+          icon == Icons.add ? 'Augmenter la quantité' : 'Réduire la quantité',
+      style: IconButton.styleFrom(
+          backgroundColor: bg,
+          foregroundColor: fg,
+          minimumSize: const Size(48, 48)),
+      icon: Icon(icon),
     );
   }
 }
@@ -166,7 +166,7 @@ class _MiniBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(text,
-          style: TextStyle(fontSize: 11, color: cs.onSecondaryContainer)),
+          style: TextStyle(fontSize: 12, color: cs.onSecondaryContainer)),
     );
   }
 }
@@ -186,4 +186,3 @@ class _Thumb extends StatelessWidget {
     );
   }
 }
-

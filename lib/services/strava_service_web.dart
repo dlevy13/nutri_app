@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
-import 'package:universal_html/html.dart' as web;
+import 'package:web/web.dart' as web;
 
 import 'strava_service_shared.dart';
 
@@ -15,10 +15,9 @@ class StravaServiceWeb implements StravaServiceShared {
 
   final bool isWebDebug = kIsWeb && !kReleaseMode;
 
-late final String redirectUri = isWebDebug
-    ? "http://localhost:5280/strava-callback"
-    : "https://nutriapp-4ea20.web.app/strava-callback";
-
+  late final String redirectUri = isWebDebug
+      ? "http://localhost:5280/strava-callback"
+      : "https://nutriapp-4ea20.web.app/strava-callback";
 
   // ----------------------------------------------------------
   // 🚀 OAuth
@@ -27,8 +26,7 @@ late final String redirectUri = isWebDebug
   Future<void> launchAuthUrl(String uid) async {
     final scope = Uri.encodeComponent("read,activity:read_all");
 
-    final url =
-        "https://www.strava.com/oauth/authorize"
+    final url = "https://www.strava.com/oauth/authorize"
         "?client_id=170321"
         "&response_type=code"
         "&redirect_uri=$redirectUri"
@@ -47,8 +45,7 @@ late final String redirectUri = isWebDebug
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) throw Exception("Utilisateur non connecté");
 
-    final res =
-        await http.get(Uri.parse("$proxyOAuth?code=$code&uid=$uid"));
+    final res = await http.get(Uri.parse("$proxyOAuth?code=$code&uid=$uid"));
 
     if (res.statusCode != 200) {
       throw Exception("Échec OAuth Strava Web");
@@ -56,10 +53,11 @@ late final String redirectUri = isWebDebug
 
     final data = jsonDecode(res.body);
 
-    web.window.localStorage["access_token"] =
-        data["access_token"] ?? "";
-    web.window.localStorage["refresh_token"] =
-        data["refresh_token"] ?? "";
+    web.window.localStorage.setItem("access_token", data["access_token"] ?? "");
+    web.window.localStorage.setItem(
+      "refresh_token",
+      data["refresh_token"] ?? "",
+    );
   }
 
   // ----------------------------------------------------------
@@ -67,7 +65,7 @@ late final String redirectUri = isWebDebug
   // ----------------------------------------------------------
   @override
   Future<void> refreshAccessToken() async {
-    final refreshToken = web.window.localStorage["refresh_token"];
+    final refreshToken = web.window.localStorage.getItem("refresh_token");
     if (refreshToken == null || refreshToken.isEmpty) return;
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -86,10 +84,11 @@ late final String redirectUri = isWebDebug
 
     final data = jsonDecode(res.body);
 
-    web.window.localStorage["access_token"] =
-        data["access_token"] ?? "";
-    web.window.localStorage["refresh_token"] =
-        data["refresh_token"] ?? "";
+    web.window.localStorage.setItem("access_token", data["access_token"] ?? "");
+    web.window.localStorage.setItem(
+      "refresh_token",
+      data["refresh_token"] ?? "",
+    );
   }
 
   // ----------------------------------------------------------
@@ -97,12 +96,12 @@ late final String redirectUri = isWebDebug
   // ----------------------------------------------------------
   @override
   Future<String?> getAccessToken() async {
-    return web.window.localStorage["access_token"];
+    return web.window.localStorage.getItem("access_token");
   }
 
   @override
   Future<String?> getRefreshToken() async {
-    return web.window.localStorage["refresh_token"];
+    return web.window.localStorage.getItem("refresh_token");
   }
 
   // ----------------------------------------------------------
@@ -110,8 +109,8 @@ late final String redirectUri = isWebDebug
   // ----------------------------------------------------------
   @override
   Future<void> disconnect() async {
-    web.window.localStorage.remove("access_token");
-    web.window.localStorage.remove("refresh_token");
+    web.window.localStorage.removeItem("access_token");
+    web.window.localStorage.removeItem("refresh_token");
   }
 
   // ----------------------------------------------------------

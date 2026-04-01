@@ -1,6 +1,6 @@
-import 'package:characters/characters.dart';
 import '../models/aliment_usuel.dart';
 import 'fonctions.dart';
+
 //refonte
 class FoodMatchingService {
   final List<AlimentUsuel> alimentsUsuels;
@@ -10,6 +10,7 @@ class FoodMatchingService {
   static const int _kWordSetMatchBaseScore = 2400;
   static const int _kHighCoverageBaseScore = 2000;
   static const int _kMediumCoverageBaseScore = 1500;
+  static const int _kSingleTokenContainedScore = 1300;
   static const int _kStartsWithScore = 900;
   static const int _kMatchThreshold = 1200;
 
@@ -93,6 +94,12 @@ class FoodMatchingService {
 
     if (cov >= 0.9) return _kHighCoverageBaseScore + keyWords.length;
     if (cov >= 0.7) return _kMediumCoverageBaseScore + (cov * 100).round();
+
+    // Requête courte nettoyée ("yaourt sans sucre" -> "yaourt") :
+    // on autorise un match si l'unique token reste présent dans la clé.
+    if (nameWords.length == 1 && keyWords.contains(nameWords.first)) {
+      return _kSingleTokenContainedScore;
+    }
 
     // Starts with single word
     if (keyWords.length == 1) {

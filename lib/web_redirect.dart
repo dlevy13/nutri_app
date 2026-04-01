@@ -1,6 +1,6 @@
-import 'package:universal_html/html.dart' as html;
+import 'package:web/web.dart' as web;
 
 void redirectToHome() {
   // ✅ Nettoyage URL SANS reload (indispensable iOS PWA)
-  html.window.history.replaceState(null, '', '/');
+  web.window.history.replaceState(null, '', '/');
 }

@@ -15,18 +15,23 @@ class EnergyGaugeCard extends ConsumerWidget {
     final theme = Theme.of(context);
 
     // --- 1. RÉCUPÉRATION DES DONNÉES ---
-    final double consumed = state.dailyCaloriesForDay?.total ?? 0.0;
-    final double baseTdee = state.tdee;
+    final double consumed = (state.consumedMacros['Calories'] ??
+            state.dailyCaloriesForDay?.total ??
+            0.0)
+        .toDouble();
+    final double totalGoal = (state.macroNeeds['Calories'] ??
+            state.dailyCaloriesForDay?.objectif ??
+            0.0)
+        .toDouble();
 
     // 🔥 ACTIVITÉ UNIQUEMENT VIA HIVE → Strava
     final double activityKcalFinal = state.stravaCaloriesForDay;
-
-    // Objectif total = Base + Activité
-    final double totalGoal = baseTdee + activityKcalFinal;
+    final double adjustedBaseGoal =
+        (totalGoal - activityKcalFinal).clamp(0.0, double.infinity);
 
     // --- 2. CALCUL DES PROPORTIONS ---
     final double baseRatio =
-        totalGoal > 0 ? (baseTdee / totalGoal) : 1.0;
+        totalGoal > 0 ? (adjustedBaseGoal / totalGoal) : 1.0;
 
     final double bonusRatio =
         totalGoal > 0 ? (activityKcalFinal / totalGoal) : 0.0;
@@ -73,7 +78,7 @@ class EnergyGaugeCard extends ConsumerWidget {
                         flex: (bonusRatio * 100).toInt(),
                         child: Container(
                           decoration: BoxDecoration(
-                            color: Colors.orange.withOpacity(0.2),
+                            color: Colors.orange.withValues(alpha: 0.2),
                             borderRadius: const BorderRadius.only(
                               topLeft: Radius.circular(10),
                               topRight: Radius.circular(10),
@@ -86,7 +91,7 @@ class EnergyGaugeCard extends ConsumerWidget {
                         flex: (baseRatio * 100).toInt(),
                         child: Container(
                           decoration: BoxDecoration(
-                            color: Colors.grey.withOpacity(0.2),
+                            color: Colors.grey.withValues(alpha: 0.2),
                             borderRadius: const BorderRadius.only(
                               bottomLeft: Radius.circular(10),
                               bottomRight: Radius.circular(10),
@@ -148,7 +153,6 @@ class EnergyGaugeCard extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-
                 Text(
                   consumed.toStringAsFixed(0),
                   style: theme.textTheme.headlineMedium?.copyWith(
@@ -163,11 +167,9 @@ class EnergyGaugeCard extends ConsumerWidget {
                     color: Colors.black87,
                   ),
                 ),
-
                 const SizedBox(height: 12),
                 const Divider(height: 1),
                 const SizedBox(height: 12),
-
                 Text(
                   remainingText,
                   style: theme.textTheme.bodyLarge?.copyWith(
@@ -176,9 +178,8 @@ class EnergyGaugeCard extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-
                 Text(
-                  "Base: ${baseTdee.toStringAsFixed(0)} kcal",
+                  "Base ajustée: ${adjustedBaseGoal.toStringAsFixed(0)} kcal",
                   style: const TextStyle(fontSize: 12, color: Colors.black54),
                 ),
                 Text(

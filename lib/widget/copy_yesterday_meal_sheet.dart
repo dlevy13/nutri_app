@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/meal.dart';
 
-
 class CopyYesterdayMealSheet extends StatefulWidget {
   final List<Meal> meals;
   final double step;
@@ -18,8 +17,7 @@ class CopyYesterdayMealSheet extends StatefulWidget {
   });
 
   @override
-  State<CopyYesterdayMealSheet> createState() =>
-      _CopyYesterdayMealSheetState();
+  State<CopyYesterdayMealSheet> createState() => _CopyYesterdayMealSheetState();
 }
 
 class _CopyYesterdayMealSheetState extends State<CopyYesterdayMealSheet> {
@@ -45,7 +43,6 @@ class _CopyYesterdayMealSheetState extends State<CopyYesterdayMealSheet> {
                 "Cochez les aliments à ajouter et ajustez les quantités.",
               ),
               const Divider(height: 24),
-
               Expanded(
                 child: ListView.builder(
                   controller: scrollController,
@@ -54,110 +51,110 @@ class _CopyYesterdayMealSheetState extends State<CopyYesterdayMealSheet> {
                     final meal = widget.meals[index];
                     final key = '${meal.date}_${meal.type}_${meal.name}';
                     final isSelected = selectedMeals.containsKey(key);
-return Padding(
-  padding: const EdgeInsets.symmetric(vertical: 6),
-  child: Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      // ───────── Ligne 1 : Checkbox + texte
-      Row(
-        children: [
-          Checkbox(
-            value: isSelected,
-            onChanged: (value) {
-              HapticFeedback.selectionClick();
-              setState(() {
-                if (value == true) {
-                  selectedMeals[key] = meal.quantity;
-                } else {
-                  selectedMeals.remove(key);
-                }
-              });
-            },
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  meal.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyLarge,
-                ),
-                Text(
-                  "Hier : ${meal.quantity.toStringAsFixed(0)}g",
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // ───────── Ligne 1 : Checkbox + texte
+                          Row(
+                            children: [
+                              Checkbox(
+                                value: isSelected,
+                                onChanged: (value) {
+                                  HapticFeedback.selectionClick();
+                                  setState(() {
+                                    if (value == true) {
+                                      selectedMeals[key] = meal.quantity;
+                                    } else {
+                                      selectedMeals.remove(key);
+                                    }
+                                  });
+                                },
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      meal.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style:
+                                          Theme.of(context).textTheme.bodyLarge,
+                                    ),
+                                    Text(
+                                      "Hier : ${meal.quantity.toStringAsFixed(0)}g",
+                                      style:
+                                          Theme.of(context).textTheme.bodySmall,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
 
-      // ───────── Ligne 2 : contrôles quantité (si sélectionné)
-      AnimatedSwitcher(
-        duration: const Duration(milliseconds: 150),
-        child: !isSelected
-            ? const SizedBox.shrink()
-            : Padding(
-                padding: const EdgeInsets.only(left: 48, top: 6),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    _RoundIconButton(
-                      icon: Icons.remove,
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                        setState(() {
-                          final q =
-                              selectedMeals[key]! - widget.step;
-                          if (q <= 0) {
-                            selectedMeals.remove(key);
-                          } else {
-                            selectedMeals[key] = q;
-                          }
-                        });
-                      },
-                    ),
-                    const SizedBox(width: 8),
-                    SizedBox(
-                      width: 56,
-                      child: Text(
-                        "${selectedMeals[key]!.toStringAsFixed(0)}g",
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                        ),
+                          // ───────── Ligne 2 : contrôles quantité (si sélectionné)
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 150),
+                            child: !isSelected
+                                ? const SizedBox.shrink()
+                                : Padding(
+                                    padding:
+                                        const EdgeInsets.only(left: 48, top: 6),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.end,
+                                      children: [
+                                        _RoundIconButton(
+                                          icon: Icons.remove,
+                                          onTap: () {
+                                            HapticFeedback.lightImpact();
+                                            setState(() {
+                                              final q = selectedMeals[key]! -
+                                                  widget.step;
+                                              if (q <= 0) {
+                                                selectedMeals.remove(key);
+                                              } else {
+                                                selectedMeals[key] = q;
+                                              }
+                                            });
+                                          },
+                                        ),
+                                        const SizedBox(width: 8),
+                                        SizedBox(
+                                          width: 56,
+                                          child: Text(
+                                            "${selectedMeals[key]!.toStringAsFixed(0)}g",
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        _RoundIconButton(
+                                          icon: Icons.add,
+                                          onTap: () {
+                                            HapticFeedback.lightImpact();
+                                            setState(() {
+                                              selectedMeals[key] =
+                                                  selectedMeals[key]! +
+                                                      widget.step;
+                                            });
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    _RoundIconButton(
-                      icon: Icons.add,
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                        setState(() {
-                          selectedMeals[key] =
-                              selectedMeals[key]! + widget.step;
-                        });
-                      },
-                    ),
-                  ],
-                ),
-              ),
-      ),
-    ],
-  ),
-);
-
-                    
+                    );
                   },
                 ),
               ),
-
               const SizedBox(height: 12),
-
               SafeArea(
                 top: false,
                 child: SizedBox(
@@ -183,37 +180,32 @@ return Padding(
     );
   }
 }
+
 class _RoundIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onTap;
-  final bool enabled;
 
   const _RoundIconButton({
     required this.icon,
     required this.onTap,
-    this.enabled = true,
   });
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: enabled ? onTap : null,
+      onTap: onTap,
       borderRadius: BorderRadius.circular(20),
       child: Container(
         width: 36,
         height: 36,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: enabled
-              ? Theme.of(context).colorScheme.primary.withOpacity(0.12)
-              : Colors.grey.withOpacity(0.1),
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
         ),
         child: Icon(
           icon,
           size: 20,
-          color: enabled
-              ? Theme.of(context).colorScheme.primary
-              : Colors.grey,
+          color: Theme.of(context).colorScheme.primary,
         ),
       ),
     );

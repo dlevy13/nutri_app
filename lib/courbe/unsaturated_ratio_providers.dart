@@ -59,55 +59,80 @@ class DailyLipids {
 // ----------------------------------------------------------------------------
 
 final dailyLipidsProvider = FutureProvider<List<DailyLipids>>((ref) async {
-  final repo = ref.watch(mealRepositoryProvider);
-
   final days = ref.watch(bejRangeDaysProvider);
+  final remoteRepo = ref.watch(dailySnapshotRemoteRepositoryProvider);
+  final mealRepo = ref.watch(mealRepositoryProvider);
   final now = DateTime.now();
 
   final start = DateService.startOfLocalDay(now.subtract(Duration(days: days - 1)));
   final end = DateService.startOfLocalDay(now);
-
-  final meals = await repo.getMealsInRange(start, end);
-  if (meals.isEmpty) return [];
-
-  // regrouper par date (yyyy-MM-dd)
-  final Map<String, List<Meal>> byDay = {};
-  for (final m in meals) {
-    byDay.putIfAbsent(m.date, () => []).add(m);
-  }
-
   final today = DateService.startOfLocalDay(now);
   final list = <DailyLipids>[];
 
-  for (final entry in byDay.entries) {
-    final dateStr = entry.key;
-    final mealsOfDay = entry.value;
-    final day = DateService.parseStandard(dateStr);
-    final isToday = DateService.startOfLocalDay(day) == today;
+  final snapshots = await remoteRepo.fetchLastDays(limit: days);
+  final filteredSnapshots = snapshots.where((s) {
+    final day = DateService.startOfLocalDay(s.date);
+    return day.compareTo(start) >= 0 && day.compareTo(end) <= 0;
+  }).toList()
+    ..sort((a, b) => a.date.compareTo(b.date));
 
-    final mealsCount = mealsOfDay.length;
+  if (filteredSnapshots.isNotEmpty) {
+    for (final s in filteredSnapshots) {
+      final day = DateService.startOfLocalDay(s.date);
+      final isToday = day == today;
+      final hasAnyLipids =
+          s.fatG > 0 || s.fatSaturatedG > 0 || s.fatMonounsaturatedG > 0 || s.fatPolyunsaturatedG > 0;
 
-    // 🔥 règle J-1 identique à Firestore
-    if (isToday && mealsCount < 3) continue;
+      if (isToday && !hasAnyLipids) continue;
 
-    double fat = 0, sat = 0, mono = 0, poly = 0;
+      list.add(DailyLipids(
+        day: day,
+        total: s.fatG,
+        sat: s.fatSaturatedG,
+        mono: s.fatMonounsaturatedG,
+        poly: s.fatPolyunsaturatedG,
+        trans: 0.0,
+        mealsCount: hasAnyLipids ? 1 : 0,
+      ));
+    }
+  } else {
+    final meals = await mealRepo.getMealsInRange(start, end);
+    if (meals.isEmpty) return [];
 
-    for (final m in mealsOfDay) {
-      fat  += _safeD(m.fat);
-      sat  += _safeD(m.fatSaturated);
-      mono += _safeD(m.fatMonounsaturated);
-      poly += _safeD(m.fatPolyunsaturated);
+    final Map<String, List<Meal>> byDay = {};
+    for (final m in meals) {
+      byDay.putIfAbsent(m.date, () => []).add(m);
     }
 
-    list.add(DailyLipids(
-      day: day,
-      total: fat,
-      sat: sat,
-      mono: mono,
-      poly: poly,
-      trans: 0.0,
-      mealsCount: mealsCount,
-    ));
+    for (final entry in byDay.entries) {
+      final dateStr = entry.key;
+      final mealsOfDay = entry.value;
+      final day = DateService.parseStandard(dateStr);
+      final isToday = DateService.startOfLocalDay(day) == today;
+
+      final mealsCount = mealsOfDay.length;
+
+      if (isToday && mealsCount < 3) continue;
+
+      double fat = 0, sat = 0, mono = 0, poly = 0;
+
+      for (final m in mealsOfDay) {
+        fat  += _safeD(m.fat);
+        sat  += _safeD(m.fatSaturated);
+        mono += _safeD(m.fatMonounsaturated);
+        poly += _safeD(m.fatPolyunsaturated);
+      }
+
+      list.add(DailyLipids(
+        day: day,
+        total: fat,
+        sat: sat,
+        mono: mono,
+        poly: poly,
+        trans: 0.0,
+        mealsCount: mealsCount,
+      ));
+    }
   }
 
   list.sort((a, b) => a.day.compareTo(b.day));

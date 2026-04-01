@@ -3,13 +3,13 @@ import 'package:nutri_app/core/base/base_view_model.dart';
 class HomeViewModel extends BaseViewModel {
   int _counter;
 
-  HomeViewModel({int counter = 0}) : this._counter = counter;
+  HomeViewModel({int counter = 0}) : _counter = counter;
 
-  int get counter => this._counter;
+  int get counter => _counter;
   set counter(int value) {
-    this._counter = value;
+    _counter = value;
     notifyListeners();
   }
 
-  void increment() => this.counter += 1;
+  void increment() => counter += 1;
 }

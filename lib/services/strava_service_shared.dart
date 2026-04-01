@@ -1,5 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
-
 abstract class StravaServiceShared {
   Future<void> launchAuthUrl(String uid);
   Future<void> exchangeToken(String code);

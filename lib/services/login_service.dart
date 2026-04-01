@@ -27,7 +27,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     super.dispose();
   }
 
-  Future<void> _login(BuildContext context) async {
+  Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _loading = true);
@@ -113,7 +113,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               const SizedBox(height: 20),
 
               ElevatedButton(
-                onPressed: _loading ? null : () => _login(context),
+                onPressed: _loading ? null : _login,
                 child: _loading
                     ? const CircularProgressIndicator(
                         color: Colors.white,

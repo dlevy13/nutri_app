@@ -1,22 +1,22 @@
-part of home_view;
+part of 'home_view.dart';
 
 class _HomeTablet extends StatelessWidget {
   final HomeViewModel viewModel;
 
-  _HomeTablet(this.viewModel);
+  const _HomeTablet({required this.viewModel});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Tablet'),
+        title: const Text('Tablet'),
         backgroundColor: Colors.indigo,
       ),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            Text(
+            const Text(
               'You have pushed the button this many times: ',
               style: TextStyle(fontSize: 14),
             ),
@@ -28,9 +28,9 @@ class _HomeTablet extends StatelessWidget {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        child: Icon(Icons.add),
         onPressed: viewModel.increment,
         backgroundColor: Colors.indigo,
+        child: const Icon(Icons.add),
       ),
     );
   }

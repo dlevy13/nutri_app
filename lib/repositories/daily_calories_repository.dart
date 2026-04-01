@@ -25,8 +25,9 @@ class DailyCaloriesRepository {
 }
 
 
-/// 🧹 Nettoyage automatique (7 jours)
-  Future<void> cleanupOldEntries({int keepDays = 7}) async {
+/// 🧹 Nettoyage automatique
+/// Conserver largement plus que l'horizon max des graphiques (90 j).
+  Future<void> cleanupOldEntries({int keepDays = 180}) async {
     final cutoff = DateTime.now().subtract(Duration(days: keepDays));
 
     final keysToDelete = <dynamic>[];
@@ -112,7 +113,7 @@ class DailyCaloriesRepository {
     stravaFetchedAt: DateTime.now(),
   );
 
- await cleanupOldEntries();
+  await cleanupOldEntries();
 
 
   return calories;

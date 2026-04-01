@@ -33,7 +33,7 @@ class WelcomePage extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Image.asset(
-                    "assets/icons/nutriWatt_logo.png",
+                    "assets/icons/nutriwatt_brand.png",
                     height: 140,
                   ),
 

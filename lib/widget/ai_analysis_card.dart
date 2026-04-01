@@ -47,55 +47,54 @@ class AiAnalysisCard extends StatelessWidget {
         ),
       );
     } else {
-  final bg = Theme.of(context).cardColor;
+      final bg = Theme.of(context).cardColor;
 
-  body = AnimatedSize(
-    duration: const Duration(milliseconds: 220),
-    curve: Curves.easeInOut,
-    alignment: Alignment.topCenter,
-    child: Stack(
-      children: [
-        // Le texte (replié sur N lignes)
-        Text(
-          content.trim(),
-          maxLines: expanded ? null : collapsedLines,
-          overflow: expanded ? TextOverflow.visible : TextOverflow.clip,
-          softWrap: true,
-          style: theme.textTheme.bodyMedium,
-        ),
+      body = AnimatedSize(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeInOut,
+        alignment: Alignment.topCenter,
+        child: Stack(
+          children: [
+            // Le texte (replié sur N lignes)
+            Text(
+              content.trim(),
+              maxLines: expanded ? null : collapsedLines,
+              overflow: expanded ? TextOverflow.visible : TextOverflow.clip,
+              softWrap: true,
+              style: theme.textTheme.bodyMedium,
+            ),
 
-        // Dégradé de fade en bas (visible seulement quand replié)
-        if (!expanded)
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: IgnorePointer(
-              ignoring: true, // pour ne pas bloquer les taps
-              child: Container(
-                height: 36, // épaisseur du fade
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      bg.withValues(alpha: 0.0),  // transparent
-                      bg.withValues(alpha: 0.7),  // semi-opaque
-                      bg,                          // opaque (couleur de la Card)
-                    ],
+            // Dégradé de fade en bas (visible seulement quand replié)
+            if (!expanded)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: IgnorePointer(
+                  ignoring: true, // pour ne pas bloquer les taps
+                  child: Container(
+                    height: 36, // épaisseur du fade
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          bg.withValues(alpha: 0.0), // transparent
+                          bg.withValues(alpha: 0.7), // semi-opaque
+                          bg, // opaque (couleur de la Card)
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
-      ],
-    ),
-  );
-}
-
+          ],
+        ),
+      );
+    }
 
     return Card(
-      elevation: 3,
+      elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -105,9 +104,10 @@ class AiAnalysisCard extends StatelessWidget {
             // En-tête
             Row(
               children: [
-                Text(title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                const Spacer(),
-                
+                Expanded(
+                    child: Text(title,
+                        style: theme.textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold))),
               ],
             ),
             const SizedBox(height: 6),
@@ -118,7 +118,9 @@ class AiAnalysisCard extends StatelessWidget {
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
                 onPressed: onToggle,
-                icon: Icon(expanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down),
+                icon: Icon(expanded
+                    ? Icons.keyboard_arrow_up
+                    : Icons.keyboard_arrow_down),
                 label: Text(expanded ? "Réduire" : "Afficher plus"),
               ),
             ),

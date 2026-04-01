@@ -1,25 +1,24 @@
+import '../../widget/card_shell.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/meal.dart';
+import '../food_analysis_helpers.dart';
 import '../dashboard_notifier.dart';
-import '../../services/date_service.dart';
-
-
 
 // ===========================================================================
 // == CONSTANTES D'ANALYSE (CENTRALISÉES)
 // ===========================================================================
 
 // --- Seuils pour "À surveiller" ---
-const double _imbalancedRatioThreshold = 1.0;  // Ratio < 1 = "À surveiller"
-const double _fiberCarbThreshold = 0.1;        // Moins d'1g de fibres pour 10g de glucides
+const double _imbalancedRatioThreshold = 1.0; // Ratio < 1 = "À surveiller"
+const double _fiberCarbThreshold =
+    0.1; // Moins d'1g de fibres pour 10g de glucides
 
 // --- Seuils pour "Bénéfiques" ---
 const double _beneficialLipidRatioThreshold = 2.0; // Ratio > 2 = "Bénéfique"
 const double _beneficialCarbRatioThreshold = 2.0; // Ratio > 2 = "Bénéfique"
 const double _proteinCalorieThreshold = 0.15; // 15% kcal en protéines
-const double _fiberThreshold = 3.0;           // 3g fibres par portion
-
+const double _fiberThreshold = 3.0; // 3g fibres par portion
 
 // ===========================================================================
 // == WIDGET "ANALYSE ALIMENTS" (COMPOSANT PRINCIPAL)
@@ -29,7 +28,8 @@ class FoodAnalysisSection extends ConsumerStatefulWidget {
   const FoodAnalysisSection({super.key});
 
   @override
-  ConsumerState<FoodAnalysisSection> createState() => _FoodAnalysisSectionState();
+  ConsumerState<FoodAnalysisSection> createState() =>
+      _FoodAnalysisSectionState();
 }
 
 class _FoodAnalysisSectionState extends ConsumerState<FoodAnalysisSection> {
@@ -54,10 +54,13 @@ class _FoodAnalysisSectionState extends ConsumerState<FoodAnalysisSection> {
     return Column(
       children: [
         // L'en-tête avec les boutons
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          spacing: 12,
+          runSpacing: 12,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-             SectionTitle('Analyse des Aliments'),
+            SectionTitle('Analyse des Aliments'),
             ToggleButtons(
               isSelected: [_selectedIndex == 0, _selectedIndex == 1],
               onPressed: (index) {
@@ -68,7 +71,7 @@ class _FoodAnalysisSectionState extends ConsumerState<FoodAnalysisSection> {
               borderRadius: BorderRadius.circular(8),
               selectedColor: Colors.white,
               fillColor: theme.colorScheme.primary,
-              constraints: const BoxConstraints(minHeight: 32, minWidth: 40),
+              constraints: const BoxConstraints(minHeight: 48, minWidth: 48),
               children: [
                 Tooltip(
                   message: "Aliments à surveiller",
@@ -92,15 +95,19 @@ class _FoodAnalysisSectionState extends ConsumerState<FoodAnalysisSection> {
             children: [
               // Sous-titre dynamique
               Text(
-                _selectedIndex == 0 ? "Aliments à surveiller" : "Aliments bénéfiques",
-                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                _selectedIndex == 0
+                    ? "Aliments à surveiller"
+                    : "Aliments bénéfiques",
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 4),
               Text(
-                 _selectedIndex == 0 
+                _selectedIndex == 0
                     ? "Aliments riches en sucres (et pauvres en fibres) ou en graisses saturées."
                     : "Aliments qui se distinguent par leurs apports et bons ratios.",
-                style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey.shade700),
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: Colors.grey.shade700),
               ),
               const SizedBox(height: 16),
               body,
@@ -122,38 +129,43 @@ class ImbalancedFoodsList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // --- 1. Récupérer les totaux de la journée ---
-    final consumedMacros = ref.watch(dashboardProvider.select((s) => s.consumedMacros));
+    final consumedMacros =
+        ref.watch(dashboardProvider.select((s) => s.consumedMacros));
     final totalSaturatedFat = consumedMacros['Saturés'] ?? 0.0;
     final totalSugars = consumedMacros['Sucres'] ?? 0.0;
 
     // --- 2. Récupérer les aliments de la journée ---
-    final selectedDate = ref.watch(dashboardProvider.select((s) => s.selectedDate));
-    final weeklyMeals = ref.watch(dashboardProvider.select((s) => s.weeklyMeals));
-    final dateStr = DateService.formatStandard(selectedDate);
-    final dailyAliments = weeklyMeals[dateStr] ?? [];
+    final selectedDate =
+        ref.watch(dashboardProvider.select((s) => s.selectedDate));
+    final weeklyMeals =
+        ref.watch(dashboardProvider.select((s) => s.weeklyMeals));
+    final dailyAliments =
+        aggregateMealsByName(mealsForSelectedDay(selectedDate, weeklyMeals));
 
     // --- 3. Analyser chaque aliment et filtrer les problématiques ---
     final analyses = dailyAliments.map((aliment) {
-      
       // --- Analyse Lipidique ---
       final unsaturatedFat = aliment.fatUnsaturated;
       final saturatedFat = aliment.fatSaturated ?? 0.0;
-      final lipidRatio = (saturatedFat > 0) ? (unsaturatedFat / saturatedFat) : 999.0;
-      final saturatedContribution = (totalSaturatedFat > 0) ? (saturatedFat / totalSaturatedFat) : 0.0;
-      
-      final isLipidProblem = lipidRatio < _imbalancedRatioThreshold; 
-      
-      
+      final lipidRatio =
+          (saturatedFat > 0) ? (unsaturatedFat / saturatedFat) : 999.0;
+      final saturatedContribution =
+          (totalSaturatedFat > 0) ? (saturatedFat / totalSaturatedFat) : 0.0;
+
+      final isLipidProblem = lipidRatio < _imbalancedRatioThreshold;
+
       // --- Analyse Glucidique ---
       final totalCarbs = aliment.carbs;
       final sugars = aliment.sucres ?? 0.0;
-      final fiber = aliment.fiber ?? 0.0; 
+      final fiber = aliment.fiber ?? 0.0;
 
       final complexCarbs = totalCarbs - sugars;
       final carbRatio = (sugars > 0) ? (complexCarbs / sugars) : 999.0;
-      final sugarContribution = (totalSugars > 0) ? (sugars / totalSugars) : 0.0;
-      
-      final double fiberToCarbRatio = (totalCarbs > 0) ? (fiber / totalCarbs) : 0.0;
+      final sugarContribution =
+          (totalSugars > 0) ? (sugars / totalSugars) : 0.0;
+
+      final double fiberToCarbRatio =
+          (totalCarbs > 0) ? (fiber / totalCarbs) : 0.0;
 
       // ✅ On utilise les constantes définies en haut du fichier
       final bool isHighSugar = carbRatio < _imbalancedRatioThreshold;
@@ -173,16 +185,18 @@ class ImbalancedFoodsList extends ConsumerWidget {
       };
     }).where((data) {
       // On garde l'aliment si l'un OU l'autre ratio pose problème
-      return (data['isLipidProblem'] as bool) || (data['isCarbProblem'] as bool);
+      return (data['isLipidProblem'] as bool) ||
+          (data['isCarbProblem'] as bool);
     }).toList();
 
-    // Trier pour montrer les plus gros contributeurs en premier
     analyses.sort((a, b) {
-      final contribA = (a['saturatedContribution'] as double) + (a['sugarContribution'] as double);
-      final contribB = (b['saturatedContribution'] as double) + (b['sugarContribution'] as double);
+      final contribA = (a['saturatedContribution'] as double) +
+          (a['sugarContribution'] as double);
+      final contribB = (b['saturatedContribution'] as double) +
+          (b['sugarContribution'] as double);
       return contribB.compareTo(contribA); // Tri descendant
     });
-    
+
     // Affichage conditionnel
     if (analyses.isEmpty) {
       return Container(
@@ -219,7 +233,7 @@ class ImbalancedFoodsList extends ConsumerWidget {
           children: analyses.map((data) {
             final aliment = data['aliment'] as Meal;
             final isEven = analyses.indexOf(data) % 2 == 0;
-            
+
             final isLipidProblem = data['isLipidProblem'] as bool;
             final isCarbProblem = data['isCarbProblem'] as bool;
 
@@ -229,30 +243,30 @@ class ImbalancedFoodsList extends ConsumerWidget {
             if (isLipidProblem) {
               final lipidRatio = data['lipidRatio'] as double;
               final contribution = data['saturatedContribution'] as double;
-              details.add(
-                Text(
-                  'Ratio L: ${lipidRatio.toStringAsFixed(1)} (Apporte ${(contribution * 100).toStringAsFixed(0)}% des saturés)',
-                  style: TextStyle(color: Colors.red.shade700, fontSize: 12),
-                )
-              );
+              details.add(Text(
+                'Ratio L: ${lipidRatio.toStringAsFixed(1)} (Apporte ${(contribution * 100).toStringAsFixed(0)}% des saturés)',
+                style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+              ));
             }
 
             if (isCarbProblem) {
               final carbRatio = data['carbRatio'] as double;
               final contribution = data['sugarContribution'] as double;
-              details.add(
-                Text(
-                  'Ratio G: ${carbRatio.toStringAsFixed(1)} (Apporte ${(contribution * 100).toStringAsFixed(0)}% des sucres)',
-                  style: TextStyle(color: Colors.orange.shade800, fontSize: 12),
-                )
-              );
+              details.add(Text(
+                'Ratio G: ${carbRatio.toStringAsFixed(1)} (Apporte ${(contribution * 100).toStringAsFixed(0)}% des sucres)',
+                style: TextStyle(color: Colors.orange.shade800, fontSize: 12),
+              ));
             }
 
             return Container(
-              color: isEven ? Colors.orange.shade50.withOpacity(0.5) : Colors.transparent,
+              color: isEven
+                  ? Colors.orange.shade50.withValues(alpha: 0.5)
+                  : Colors.transparent,
               child: ListTile(
-                leading: Icon(Icons.warning_amber_rounded, color: Colors.orange.shade700),
-                title: Text("${aliment.name} (${aliment.quantity.toStringAsFixed(0)}g)"),
+                leading: Icon(Icons.warning_amber_rounded,
+                    color: Colors.orange.shade700),
+                title: Text(
+                    "${aliment.name} (${aliment.quantity.toStringAsFixed(0)}g)"),
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: details,
@@ -277,58 +291,70 @@ class BeneficialFoodsList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // --- 1. Récupérer les totaux de la journée ---
-    final consumedMacros = ref.watch(dashboardProvider.select((s) => s.consumedMacros));
+    final consumedMacros =
+        ref.watch(dashboardProvider.select((s) => s.consumedMacros));
     final totalProtein = consumedMacros['Protéines'] ?? 0.0;
     final totalFiber = consumedMacros['Fibres'] ?? 0.0;
-    
+
     final totalCarbs = consumedMacros['Glucides'] ?? 0.0;
     final totalSugars = consumedMacros['Sucres'] ?? 0.0;
-    final totalComplexCarbs = (totalCarbs - totalSugars).clamp(0.0, double.infinity);
+    final totalComplexCarbs =
+        (totalCarbs - totalSugars).clamp(0.0, double.infinity);
 
     final totalFat = consumedMacros['Lipides'] ?? 0.0;
     final totalSaturatedFat = consumedMacros['Saturés'] ?? 0.0;
-    final totalUnsaturatedFat = (totalFat - totalSaturatedFat).clamp(0.0, double.infinity);
+    final totalUnsaturatedFat =
+        (totalFat - totalSaturatedFat).clamp(0.0, double.infinity);
 
     // --- 2. Récupérer les aliments de la journée ---
-    final selectedDate = ref.watch(dashboardProvider.select((s) => s.selectedDate));
-    final weeklyMeals = ref.watch(dashboardProvider.select((s) => s.weeklyMeals));
-    final dateStr = DateService.formatStandard(selectedDate);
-    final dailyAliments = weeklyMeals[dateStr] ?? [];
+    final selectedDate =
+        ref.watch(dashboardProvider.select((s) => s.selectedDate));
+    final weeklyMeals =
+        ref.watch(dashboardProvider.select((s) => s.weeklyMeals));
+    final dailyAliments =
+        aggregateMealsByName(mealsForSelectedDay(selectedDate, weeklyMeals));
 
     // --- 3. Analyser chaque aliment et filtrer les bénéfiques ---
     final analyses = dailyAliments.map((aliment) {
-      
       // --- 1. Analyse Lipidique ---
       final unsaturatedFat = aliment.fatUnsaturated;
       final saturatedFat = aliment.fatSaturated ?? 0.0;
-      final lipidRatio = (saturatedFat > 0) ? (unsaturatedFat / saturatedFat) : 999.0;
+      final lipidRatio =
+          (saturatedFat > 0) ? (unsaturatedFat / saturatedFat) : 999.0;
       // ✅ On utilise la constante du fichier ET la vérification (unsaturatedFat > 0)
-      final isLipidBenefit = (lipidRatio > _beneficialLipidRatioThreshold) && (unsaturatedFat > 0);
-      final unsaturatedContribution = (totalUnsaturatedFat > 0) ? (unsaturatedFat / totalUnsaturatedFat) : 0.0;
+      final isLipidBenefit =
+          (lipidRatio > _beneficialLipidRatioThreshold) && (unsaturatedFat > 0);
+      final unsaturatedContribution = (totalUnsaturatedFat > 0)
+          ? (unsaturatedFat / totalUnsaturatedFat)
+          : 0.0;
       // --- 2. Analyse Glucidique ---
       final totalCarbs = aliment.carbs;
       final sugars = aliment.sucres ?? 0.0;
       final fiber = aliment.fiber ?? 0.0;
-      
+
       final complexCarbs = (totalCarbs - sugars).clamp(0.0, double.infinity);
       final carbRatio = (sugars > 0) ? (complexCarbs / sugars) : 999.0;
-      final complexCarbContribution = (totalComplexCarbs > 0) ? (complexCarbs / totalComplexCarbs) : 0.0;
+      final complexCarbContribution =
+          (totalComplexCarbs > 0) ? (complexCarbs / totalComplexCarbs) : 0.0;
 
-      final double fiberToCarbRatio = (totalCarbs > 0) ? (fiber / totalCarbs) : 0.0;
+      final double fiberToCarbRatio =
+          (totalCarbs > 0) ? (fiber / totalCarbs) : 0.0;
 
       // ✅ On utilise les constantes du fichier
       final bool isLowSugar = carbRatio > _beneficialCarbRatioThreshold;
       final bool isHighFiber = fiberToCarbRatio >= _fiberCarbThreshold;
 
-      final isCarbBenefit = isLowSugar || isHighFiber; 
+      final isCarbBenefit = isLowSugar || isHighFiber;
 
       // --- 3. Analyse Protéines ---
       final protein = aliment.protein;
       final calories = aliment.calories;
-      final proteinCalorieRatio = (calories > 0) ? (protein * 4) / calories : 0.0;
+      final proteinCalorieRatio =
+          (calories > 0) ? (protein * 4) / calories : 0.0;
       // ✅ On utilise la constante du fichier
       final isProteinBenefit = proteinCalorieRatio > _proteinCalorieThreshold;
-      final proteinContribution = (totalProtein > 0) ? (protein / totalProtein) : 0.0;
+      final proteinContribution =
+          (totalProtein > 0) ? (protein / totalProtein) : 0.0;
 
       // --- 4. Analyse Fibres ---
       // ✅ On utilise la constante du fichier
@@ -339,8 +365,8 @@ class BeneficialFoodsList extends ConsumerWidget {
       // On ne veut pas qu'un aliment "à surveiller" se retrouve ici.
 
       // Problème lipidique (reprise logique ImbalancedFoodsList)
-      final isLipidProblem = lipidRatio < _imbalancedRatioThreshold; 
-      
+      final isLipidProblem = lipidRatio < _imbalancedRatioThreshold;
+
       // Problème glucidique (reprise logique ImbalancedFoodsList)
       final bool isHighSugar = carbRatio < _imbalancedRatioThreshold;
       final bool isLowInFiber = fiberToCarbRatio < _fiberCarbThreshold;
@@ -365,36 +391,30 @@ class BeneficialFoodsList extends ConsumerWidget {
     }).where((data) {
       // On garde l'aliment si AU MOINS UN critère est respecté
       final bool isBeneficial = (data['isLipidBenefit'] as bool) ||
-                                (data['isCarbBenefit'] as bool) ||
-                                (data['isProteinBenefit'] as bool) ||
-                                (data['isFiberBenefit'] as bool);
-      
+          (data['isCarbBenefit'] as bool) ||
+          (data['isProteinBenefit'] as bool) ||
+          (data['isFiberBenefit'] as bool);
+
       final bool isImbalanced = data['isImbalanced'] as bool;
-      
+
       // ✅ On ne garde que les aliments bénéfiques QUI NE SONT PAS problématiques
       return isBeneficial && !isImbalanced;
     }).toList();
 
-    // Trier pour montrer les plus gros contributeurs en premier
     analyses.sort((a, b) {
-      final contribA = (a['unsaturatedContribution'] as double) + (a['complexCarbContribution'] as double) + (a['proteinContribution'] as double) + (a['fiberContribution'] as double);
-      final contribB = (b['unsaturatedContribution'] as double) + (b['complexCarbContribution'] as double) + (b['proteinContribution'] as double) + (b['fiberContribution'] as double);
-      return contribB.compareTo(contribA); // Tri descendant
+      final contribA = (a['unsaturatedContribution'] as double) +
+          (a['complexCarbContribution'] as double) +
+          (a['proteinContribution'] as double) +
+          (a['fiberContribution'] as double);
+      final contribB = (b['unsaturatedContribution'] as double) +
+          (b['complexCarbContribution'] as double) +
+          (b['proteinContribution'] as double) +
+          (b['fiberContribution'] as double);
+      return contribB.compareTo(contribA);
     });
-    
-    // --- 4. Retirer les doublons ---
-    final Map<String, Map<String, dynamic>> uniqueAnalyses = {};
-    for (var data in analyses) {
-      final aliment = data['aliment'] as Meal;
-      if (!uniqueAnalyses.containsKey(aliment.name)) {
-        uniqueAnalyses[aliment.name] = data;
-      }
-    }
-    final finalAnalyses = uniqueAnalyses.values.toList();
-
 
     // Affichage conditionnel
-    if (finalAnalyses.isEmpty) {
+    if (analyses.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(16.0),
         decoration: BoxDecoration(
@@ -416,7 +436,7 @@ class BeneficialFoodsList extends ConsumerWidget {
         ),
       );
     }
-    
+
     // Affiche la liste des aliments
     return Container(
       decoration: BoxDecoration(
@@ -426,57 +446,66 @@ class BeneficialFoodsList extends ConsumerWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(11),
         child: Column(
-          children: finalAnalyses.map((data) {
+          children: analyses.map((data) {
             final aliment = data['aliment'] as Meal;
-            final isEven = finalAnalyses.indexOf(data) % 2 == 0;
-            
+            final isEven = analyses.indexOf(data) % 2 == 0;
+
             // On construit le sous-titre dynamique
             List<Widget> details = [];
 
             if (data['isLipidBenefit'] as bool) {
               final contribution = data['unsaturatedContribution'] as double;
-              details.add(
-                Text(
-                  '👍 Bon Ratio L (Apporte ${(contribution * 100).toStringAsFixed(0)}% des insaturés)',
-                  style: TextStyle(color: Colors.green.shade700, fontSize: 12, fontWeight: FontWeight.w500),
-                )
-              );
+              details.add(Text(
+                '👍 Bon Ratio L (Apporte ${(contribution * 100).toStringAsFixed(0)}% des insaturés)',
+                style: TextStyle(
+                    color: Colors.green.shade700,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500),
+              ));
             }
             if (data['isCarbBenefit'] as bool) {
               final contribution = data['complexCarbContribution'] as double;
               final bool isLowSugar = data['isLowSugar'] as bool;
-              final String label = isLowSugar ? "Bon Ratio G" : "Bons Glucides (Fibres)";
-              details.add(
-                Text(
-                  '👍 $label (Apporte ${(contribution * 100).toStringAsFixed(0)}% des G. complexes)',
-                  style: TextStyle(color: Colors.green.shade700, fontSize: 12, fontWeight: FontWeight.w500),
-                )
-              );
+              final String label =
+                  isLowSugar ? "Bon Ratio G" : "Bons Glucides (Fibres)";
+              details.add(Text(
+                '👍 $label (Apporte ${(contribution * 100).toStringAsFixed(0)}% des G. complexes)',
+                style: TextStyle(
+                    color: Colors.green.shade700,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500),
+              ));
             }
             if (data['isProteinBenefit'] as bool) {
               final contribution = data['proteinContribution'] as double;
-              details.add(
-                Text(
-                  '💪 Source Prot. (Apporte ${(contribution * 100).toStringAsFixed(0)}% des protéines)',
-                  style: TextStyle(color: Colors.blue.shade700, fontSize: 12, fontWeight: FontWeight.w500),
-                )
-              );
+              details.add(Text(
+                '💪 Source Prot. (Apporte ${(contribution * 100).toStringAsFixed(0)}% des protéines)',
+                style: TextStyle(
+                    color: Colors.blue.shade700,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500),
+              ));
             }
             if (data['isFiberBenefit'] as bool) {
               final contribution = data['fiberContribution'] as double;
-              details.add(
-                Text(
-                  '🌿 Source Fibres (Apporte ${(contribution * 100).toStringAsFixed(0)}% des fibres)',
-                  style: TextStyle(color: Colors.brown.shade600, fontSize: 12, fontWeight: FontWeight.w500),
-                )
-              );
+              details.add(Text(
+                '🌿 Source Fibres (Apporte ${(contribution * 100).toStringAsFixed(0)}% des fibres)',
+                style: TextStyle(
+                    color: Colors.brown.shade600,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500),
+              ));
             }
 
             return Container(
-              color: isEven ? Colors.green.shade50.withOpacity(0.5) : Colors.transparent,
+              color: isEven
+                  ? Colors.green.shade50.withValues(alpha: 0.5)
+                  : Colors.transparent,
               child: ListTile(
-                leading: Icon(Icons.health_and_safety_outlined, color: Colors.green.shade700),
-                title: Text("${aliment.name} (${aliment.quantity.toStringAsFixed(0)}g)"),
+                leading: Icon(Icons.health_and_safety_outlined,
+                    color: Colors.green.shade700),
+                title: Text(
+                    "${aliment.name} (${aliment.quantity.toStringAsFixed(0)}g)"),
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: details,
@@ -505,27 +534,6 @@ class SectionTitle extends StatelessWidget {
       style: Theme.of(context).textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.w800,
           ),
-    );
-  }
-}
-
-class CardShell extends StatelessWidget {
-  final Widget child;
-  final EdgeInsets padding;
-  const CardShell({required this.child, this.padding = const EdgeInsets.all(16), super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: padding,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: const [
-          BoxShadow(color: Color(0x14000000), blurRadius: 16, offset: Offset(0, 6)),
-        ],
-      ),
-      child: child,
     );
   }
 }

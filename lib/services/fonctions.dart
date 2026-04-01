@@ -65,11 +65,10 @@ String _fallbackLocalAnalysis(Map<String, dynamic> data) {
   // 🔸 Calcul des ratios (% des calories totales)
   final protPct = ((totalProt * 4) / totalCal) * 100;
   final carbPct = ((totalCarb * 4) / totalCal) * 100;
-  final fatPct  = ((totalFat  * 9) / totalCal) * 100;
+  final fatPct = ((totalFat * 9) / totalCal) * 100;
 
   String interpretation = "📊 **Analyse locale des repas :**\n";
-  interpretation +=
-      "- Calories : ${totalCal.toStringAsFixed(0)} kcal\n"
+  interpretation += "- Calories : ${totalCal.toStringAsFixed(0)} kcal\n"
       "- Répartition : Prot. ${protPct.toStringAsFixed(1)}% | "
       "Gluc. ${carbPct.toStringAsFixed(1)}% | "
       "Lip. ${fatPct.toStringAsFixed(1)}%\n\n";
@@ -78,7 +77,8 @@ String _fallbackLocalAnalysis(Map<String, dynamic> data) {
   final List<String> observations = [];
 
   if (protPct < 15) {
-    observations.add("🔹 Apport en protéines trop faible pour soutenir la masse musculaire.");
+    observations.add(
+        "🔹 Apport en protéines trop faible pour soutenir la masse musculaire.");
   } else if (protPct > 30) {
     observations.add("🔹 Protéines très élevées, attention à l’excès.");
   }
@@ -92,11 +92,13 @@ String _fallbackLocalAnalysis(Map<String, dynamic> data) {
   if (fatPct > 35) {
     observations.add("🔹 Lipides élevés, surveille les graisses saturées.");
   } else if (fatPct < 20) {
-    observations.add("🔹 Lipides un peu bas, veille à consommer de bonnes graisses.");
+    observations
+        .add("🔹 Lipides un peu bas, veille à consommer de bonnes graisses.");
   }
 
   if (observations.isEmpty) {
-    observations.add("✅ Ton profil nutritionnel est globalement bien équilibré.");
+    observations
+        .add("✅ Ton profil nutritionnel est globalement bien équilibré.");
   }
 
   // 🔸 Conseils pratiques
@@ -133,7 +135,7 @@ extension StringCap on String {
   String cap({int max = 30}) {
     final t = trim();
     final chars = t.characters;
-    return (chars.length <= max) ? t : chars.take(max).toString() + '…';
+    return (chars.length <= max) ? t : '${chars.take(max)}…';
   }
 }
 
@@ -162,11 +164,11 @@ double _d(dynamic v) {
 Macros100 per100From(dynamic foodData) {
   // Cas A : c’est un Meal (Hive)
   if (foodData is Meal) {
-    final qty  = foodData.quantity;
+    final qty = foodData.quantity;
     final kcal = _d(foodData.calories);
-    final pro  = _d(foodData.protein);
+    final pro = _d(foodData.protein);
     final carb = _d(foodData.carbs);
-    final fat  = _d(foodData.fat);
+    final fat = _d(foodData.fat);
 
     if (qty > 0 && qty != 100) {
       final f = 100.0 / qty;
@@ -187,18 +189,18 @@ Macros100 per100From(dynamic foodData) {
 
   if (hasPerFlag100 || hasPer100Keys) {
     final kcal = hasPer100Keys ? _d(m['kcalPer100']) : _d(m['calories']);
-    final pro  = hasPer100Keys ? _d(m['proteinPer100']) : _d(m['protein']);
-    final carb = hasPer100Keys ? _d(m['carbsPer100'])   : _d(m['carbs']);
-    final fat  = hasPer100Keys ? _d(m['fatPer100'])     : _d(m['fat']);
+    final pro = hasPer100Keys ? _d(m['proteinPer100']) : _d(m['protein']);
+    final carb = hasPer100Keys ? _d(m['carbsPer100']) : _d(m['carbs']);
+    final fat = hasPer100Keys ? _d(m['fatPer100']) : _d(m['fat']);
     return Macros100(kcal, pro, carb, fat);
   }
 
   // Sinon : valeurs pour une portion → remonter en /100 g
-  final qty  = _d(m['quantity']);
+  final qty = _d(m['quantity']);
   final kcal = _d(m['calories']);
-  final pro  = _d(m['protein']);
+  final pro = _d(m['protein']);
   final carb = _d(m['carbs']);
-  final fat  = _d(m['fat']);
+  final fat = _d(m['fat']);
 
   if (qty > 0 && qty != 100) {
     final f = 100.0 / qty;
@@ -212,8 +214,8 @@ Macros100 portionFromPer100(Macros100 p100, double grams) {
   final f = grams / 100.0;
   return Macros100(
     p100.kcal * f,
-    p100.pro  * f,
+    p100.pro * f,
     p100.carb * f,
-    p100.fat  * f,
+    p100.fat * f,
   );
 }

@@ -2,7 +2,6 @@
 
 import 'package:flutter/material.dart';
 import '../models/meal.dart';
-import '../services/fonctions.dart'; // Pour l'extension .cap()
 
 class SuggestionMealCard extends StatefulWidget {
   final Meal meal;
@@ -37,16 +36,18 @@ class _SuggestionMealCardState extends State<SuggestionMealCard> {
     final cs = theme.colorScheme;
 
     return Card(
-      elevation: 0.5,
-      color: cs.surfaceContainerHighest,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 0,
+      color: cs.surface,
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: cs.outlineVariant)),
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(20),
         onTap: widget.onAdd,
         onHover: (v) => setState(() => _hovered = v),
         onFocusChange: (v) => setState(() => _hovered = v),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -55,7 +56,7 @@ class _SuggestionMealCardState extends State<SuggestionMealCard> {
                 children: [
                   Expanded(
                     child: Text(
-                      widget.meal.name.cap(max: 35),
+                      widget.meal.name,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.titleMedium?.copyWith(
@@ -72,8 +73,8 @@ class _SuggestionMealCardState extends State<SuggestionMealCard> {
                       curve: Curves.easeOut,
                       child: Icon(
                         Icons.add,
-                        size: 18,
-                        color: _hovered ? Colors.green.shade700 : Colors.green,
+                        size: 24,
+                        color: cs.primary,
                       ),
                     ),
                   ),
@@ -82,14 +83,15 @@ class _SuggestionMealCardState extends State<SuggestionMealCard> {
               const SizedBox(height: 6),
               Text(
                 "${widget.kcalPer100.toStringAsFixed(0)} kcal / 100 g",
-                style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 2),
               Text(
                 "${_fmt(widget.proteinPer100)} g P · "
                 "${_fmt(widget.carbsPer100)} g G · "
                 "${_fmt(widget.fatPer100)} g L / 100 g",
-                style: theme.textTheme.bodySmall,
+                style: theme.textTheme.bodyMedium,
               ),
             ],
           ),

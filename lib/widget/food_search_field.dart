@@ -7,12 +7,14 @@ class FoodSearchField extends StatelessWidget {
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
   final VoidCallback onClear;
+  final String hintText;
 
   const FoodSearchField({
     super.key,
     required this.controller,
     required this.onChanged,
     required this.onClear,
+    this.hintText = "Poulet, riz, pomme…",
   });
 
   @override
@@ -25,17 +27,20 @@ class FoodSearchField extends StatelessWidget {
         return TextField(
           controller: controller,
           onChanged: onChanged,
+          textInputAction: TextInputAction.search,
           decoration: InputDecoration(
-            hintText: "ex: Poulet, riz, pomme...",
-            border: const OutlineInputBorder(),
+            hintText: hintText,
+            labelText: "Rechercher un aliment",
+            prefixIcon: const Icon(Icons.search_rounded),
             // 3. La logique d'affichage de l'icône est ici,
             //    basée sur la `value` fournie par le builder.
             suffixIcon: value.text.isNotEmpty
                 ? IconButton(
-                    icon: const Icon(Icons.clear),
+                    tooltip: "Effacer la recherche",
+                    icon: const Icon(Icons.close_rounded),
                     onPressed: onClear,
                   )
-                : const Icon(Icons.search),
+                : null,
           ),
         );
       },

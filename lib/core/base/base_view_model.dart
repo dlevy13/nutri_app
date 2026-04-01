@@ -3,7 +3,7 @@ import 'package:logger/logger.dart';
 import '../logger.dart';
 
 class BaseViewModel extends ChangeNotifier {
-  String? _title;
+  final String? _title;
   bool _busy;
   late Logger log;
   bool _isDisposed = false;
@@ -12,31 +12,31 @@ class BaseViewModel extends ChangeNotifier {
     bool busy = false,
     String? title,
   })  : _busy = busy,
-      _title = title {
-    log = getLogger(title ?? this.runtimeType.toString());
+        _title = title {
+    log = getLogger(title ?? runtimeType.toString());
   }
 
-  bool get busy => this._busy;
-  bool get isDisposed => this._isDisposed;
-  String get title => _title ?? this.runtimeType.toString();
+  bool get busy => _busy;
+  bool get isDisposed => _isDisposed;
+  String get title => _title ?? runtimeType.toString();
 
   set busy(bool busy) {
     log.i(
-        'busy: '
-        '$title is entering '
-        '${busy ? 'busy' : 'free'} state',
+      'busy: '
+      '$title is entering '
+      '${busy ? 'busy' : 'free'} state',
     );
-    this._busy = busy;
+    _busy = busy;
     notifyListeners();
   }
 
   @override
   void notifyListeners() {
     if (!isDisposed) {
-        super.notifyListeners();
+      super.notifyListeners();
     } else {
-        log.w('notifyListeners: Notify listeners called after '
-            '$title has been disposed');
+      log.w('notifyListeners: Notify listeners called after '
+          '$title has been disposed');
     }
   }
 

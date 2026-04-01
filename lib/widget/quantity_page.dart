@@ -1,354 +1,212 @@
-
 import 'package:flutter/material.dart';
+import 'card_shell.dart';
 
-// Classe de modèle pour les unités usuelles
 class UsualUnit {
-  final String label;        // ex. "morceau", "tranche", "càs"
-  final double gramsPerUnit; // ex. 12.0
+  final String label;
+  final double gramsPerUnit;
   const UsualUnit({required this.label, required this.gramsPerUnit});
 }
 
-// La page de sélection de quantité, maintenant dans son propre fichier
 class QuantityPage extends StatefulWidget {
-  const QuantityPage({
-    super.key,
-    required this.title,
-    required this.unite,
-    required this.defaultValue,
-    this.usualUnits = const [],
-    this.initialUnitIndex = 0,
-  });
-
+  const QuantityPage(
+      {super.key,
+      required this.title,
+      required this.unite,
+      required this.defaultValue,
+      this.usualUnits = const [],
+      this.initialUnitIndex = 0});
   final String title;
   final String unite;
   final double defaultValue;
   final List<UsualUnit> usualUnits;
   final int initialUnitIndex;
-
   @override
   State<QuantityPage> createState() => _QuantityPageState();
 }
 
 class _QuantityPageState extends State<QuantityPage> {
   late final TextEditingController _controller;
-  final FocusNode _focus = FocusNode(); 
-  double _value = 0;
-  int _unitIndex = 0;
-  bool _isEmpty = false;
-
-  bool get _hasUsualUnits => widget.usualUnits.isNotEmpty;
+  late double _value;
+  late int _unitIndex;
+  bool _valid = true;
+  bool get _hasUnits => widget.usualUnits.isNotEmpty;
   UsualUnit get _unit => widget.usualUnits[_unitIndex];
-  double get _gramsPerUnit => _hasUsualUnits ? _unit.gramsPerUnit : 1.0;
+  double get _step => _hasUnits ? _unit.gramsPerUnit : 1;
+  String _fmt(double v) =>
+      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
 
   @override
   void initState() {
     super.initState();
     _value = widget.defaultValue;
-    _controller = TextEditingController(text: _fmt(_value));
-    final maxIndex = widget.usualUnits.isNotEmpty ? widget.usualUnits.length - 1 : 0;
-    _unitIndex = _hasUsualUnits
-        ? widget.initialUnitIndex.clamp(0, maxIndex)
+    _valid = _value.isFinite && _value > 0 && _value <= 999999;
+    _unitIndex = _hasUnits
+        ? widget.initialUnitIndex.clamp(0, widget.usualUnits.length - 1)
         : 0;
+    _controller = TextEditingController(text: _fmt(_value));
   }
 
   @override
   void dispose() {
     _controller.dispose();
-    _focus.dispose();
     super.dispose();
   }
 
-  String _fmt(double v) => v.truncateToDouble() == v ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
-  double? _tryParse(String s) {               
-    final t = s.trim();
-    if (t.isEmpty) return null;
-    return double.tryParse(t.replaceAll(',', '.'));
-  }
-
-  void _setValue(double v) {
+  void _setValue(double value) {
     setState(() {
-      _value = v.clamp(0, 999999);
-      final t = _fmt(_value);
-      _controller.value = TextEditingValue(text: t, selection: TextSelection.collapsed(offset: t.length));
-      _isEmpty = false; 
+      _value = value.clamp(0, 999999);
+      _valid = _value > 0;
+      _controller.text = _fmt(_value);
     });
   }
 
-  void _nudgeGeneric(double step) {
-    if (_hasUsualUnits) {
-      _setValue(_value + step * _gramsPerUnit);
-    } else {
-      _setValue(_value + step);
-    }
+  void _submit() {
+    if (_valid) Navigator.pop(context, _value);
   }
-
-  void _submit() => Navigator.of(context).pop(_value);
-
-  // Dans la classe _QuantityPageState
-
-  void _setHalfPortion() {
-    if (!_hasUsualUnits) return;
-    final halfWeight = _gramsPerUnit / 2.0;
-    _setValue(halfWeight);
-  }
-
-  String get _foodName {
-    final t = widget.title;
-    if (t.contains("'")) {
-      final parts = t.split("'");
-      if (parts.length >= 2) return parts[1];
-    }
-    return t;
-  }
-
-  List<double> _suggestions() {
-    if (_hasUsualUnits) {
-      const units = [1, 2, 3, 5];
-      return units.map((u) => u * _gramsPerUnit).toList();
-    }
-    final base = <double>{widget.defaultValue, 50, 100, 150, 200};
-    final list = base.where((e) => e > 0).toList()..sort();
-    return list;
-  }
-
-  String _suggestionLabel(double grams) {
-    if (_hasUsualUnits) {
-      final u = (grams / _gramsPerUnit);
-      final uInt = u.round();
-      return "${_unit.label} x $uInt (~${_fmt(grams)} g)";
-    }
-    return "${_fmt(grams)} ${widget.unite}";
-  }
-
-  int get _currentUnits => _hasUsualUnits ? (_value / _gramsPerUnit).round() : 0;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-
+    final text = Theme.of(context).textTheme;
+    final firstQuote = widget.title.indexOf("'");
+    final lastQuote = widget.title.lastIndexOf("'");
+    final name = firstQuote >= 0 && lastQuote > firstQuote
+        ? widget.title.substring(firstQuote + 1, lastQuote)
+        : widget.title;
+    final suggestions = _hasUnits
+        ? [1, 2, 3, 5].map((n) => n * _step).toList()
+        : (<double>{widget.defaultValue, 50, 100, 150, 200}
+            .where((n) => n > 0)
+            .toList()
+          ..sort());
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Quantité"),
-        actions: [
-          TextButton(
-            onPressed: _isEmpty ? null : _submit,
-            child: const Text("OK"))
-        ],
-      ),
+      appBar: AppBar(title: const Text('Choisir la quantité')),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                _foodName,
-                style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-                maxLines: 3,
-                softWrap: true,
-              ),
-              const SizedBox(height: 8),
-
-              if (_hasUsualUnits && widget.usualUnits.length > 1) ...[
-                DropdownButton<int>(
-                  value: _unitIndex,
-                  items: List.generate(widget.usualUnits.length, (i) {
-                    final u = widget.usualUnits[i];
-                    return DropdownMenuItem<int>(
-                      value: i,
-                      child: Text("${u.label} (~${_fmt(u.gramsPerUnit)} g)"),
-                    );
-                  }),
-                  onChanged: (v) {
-                    if (v == null) return;
-                    setState(() => _unitIndex = v);
-                  },
-                ),
-                const SizedBox(height: 8),
-              ],
-
-              Card(
-                elevation: 1,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                color: cs.surfaceContainerHigh,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center, // Aligne les éléments sur l'axe principal
-                    children: [
-                      // --- MODIFICATION PRINCIPALE ICI ---
-                      Expanded(
-                        child: Row(
-                          // 1. On centre le champ de texte et l'icône
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            // 2. On utilise IntrinsicWidth pour que la Row s'adapte à la taille du contenu
-                            IntrinsicWidth(
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min, // Le Row prend la taille minimale
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  // 3. Le TextField doit être flexible pour ne pas causer d'overflow
-                                  Flexible(
-                                    child: TextField(
-                                      controller: _controller,
-                                      focusNode: _focus,
-                                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                      textInputAction: TextInputAction.done,
-                                      autofocus: true,
-                                      // 4. On aligne le texte à droite pour qu'il soit collé à l'icône
-                                      textAlign: TextAlign.end, 
-                                      style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600, height: 1.0),
-                                      decoration: const InputDecoration(
-                                        isDense: true,
-                                        border: InputBorder.none,
-                                        hintText: "",
-                                      ),
-                                      onChanged: (s) {
-    // 1. On tente de convertir le texte en nombre
-    final newValue = _tryParse(s);
-
-    setState(() {
-      if (newValue != null) {
-        // 2. Si la conversion réussit, on met à jour la valeur
-        //    principale (_value) et on s'assure que le champ n'est
-        //    pas considéré comme vide.
-        _value = newValue;
-        _isEmpty = false;
-      } else {
-        // 3. Si le champ est vide ou contient un texte invalide
-        //    (ex: "abc"), on le signale avec la variable _isEmpty
-        //    pour désactiver les boutons de validation.
-        _isEmpty = true;
-      }
-    });
-  },
-                                      onSubmitted: (_) {
-                                        if (!_isEmpty) _submit();
-                                      },
-                                    ),
-                                  ),
-                                  // 5. L'icône se place juste après
-                                  IconButton(
-                                    icon: Icon(Icons.edit_outlined, color: cs.onSurfaceVariant),
-                                    tooltip: "Modifier la quantité",
-                                    onPressed: () => _focus.requestFocus(),
-                                  ),
-                                ],
+          child: Column(children: [
+        Expanded(
+            child: Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 640),
+                  child: ListView(padding: const EdgeInsets.all(20), children: [
+                    Text(name, style: text.headlineSmall),
+                    const SizedBox(height: 8),
+                    Text('Ajuste la quantité avant de l’ajouter à ton repas.',
+                        style: text.bodyLarge),
+                    const SizedBox(height: 24),
+                    CardShell(
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                          TextField(
+                            controller: _controller,
+                            keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true),
+                            textInputAction: TextInputAction.done,
+                            style: text.headlineLarge,
+                            decoration: InputDecoration(
+                                labelText: 'Quantité',
+                                suffixText: widget.unite,
+                                errorText: _valid
+                                    ? null
+                                    : 'Saisis une quantité positive (max. 999999).'),
+                            onChanged: (s) => setState(() {
+                              final value = double.tryParse(
+                                  s.trim().replaceAll(',', '.'));
+                              _valid = value != null &&
+                                  value.isFinite &&
+                                  value > 0 &&
+                                  value <= 999999;
+                              if (_valid) _value = value!;
+                            }),
+                            onSubmitted: (_) => _submit(),
+                          ),
+                          if (_hasUnits) ...[
+                            const SizedBox(height: 16),
+                            if (widget.usualUnits.length > 1)
+                              DropdownButtonFormField<int>(
+                                initialValue: _unitIndex,
+                                isExpanded: true,
+                                decoration: const InputDecoration(
+                                    labelText: 'Portion usuelle'),
+                                items: List.generate(
+                                    widget.usualUnits.length,
+                                    (i) => DropdownMenuItem(
+                                        value: i,
+                                        child: Text(
+                                            '${widget.usualUnits[i].label} (~${_fmt(widget.usualUnits[i].gramsPerUnit)} g)',
+                                            overflow: TextOverflow.ellipsis))),
+                                onChanged: (i) {
+                                  if (i != null) setState(() => _unitIndex = i);
+                                },
                               ),
-                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                                'Équivalent : ${_fmt(_value / _step)} ${_unit.label} (~${_fmt(_value)} g)',
+                                style: text.bodyMedium),
                           ],
-                        ),
-                      ),
-                      // Le texte de l'unité reste à sa place
-                      if (_hasUsualUnits)
-                        Text("≈ $_currentUnits ${_unit.label}${_currentUnits > 1 ? 's' : ''}",
-                            style: theme.textTheme.titleMedium?.copyWith(color: cs.onSurfaceVariant))
-                      else
-                        Text(widget.unite, style: theme.textTheme.titleMedium?.copyWith(color: cs.onSurfaceVariant)),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 10),
-
-              if (_hasUsualUnits) ...[
-                Row(
-                  children: [
-                    _MiniBtn(label: "-1 ${_unit.label}", onTap: () => _nudgeGeneric(-1)),
-                    const SizedBox(width: 6),
-                    // ▼▼ LE NOUVEAU BOUTON ▼▼
-                    _MiniBtn(label: "½ ${_unit.label}", onTap: _setHalfPortion),
-                    const Spacer(),
-                    _MiniBtn(label: "+1 ${_unit.label}", onTap: () => _nudgeGeneric(1), filled: true),
-                  ],
-                ),
-              ] else ...[
-                Row(
-                  children: [
-                    _MiniBtn(label: "-10", onTap: () => _nudgeGeneric(-10)),
-                    const SizedBox(width: 6),
-                    _MiniBtn(label: "-1", onTap: () => _nudgeGeneric(-1)),
-                    const Spacer(),
-                    _MiniBtn(label: "+1", onTap: () => _nudgeGeneric(1), filled: true),
-                    const SizedBox(width: 6),
-                    _MiniBtn(label: "+10", onTap: () => _nudgeGeneric(10), filled: true),
-                  ],
-                ),
-              ],
-
-              const SizedBox(height: 10),
-
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: _suggestions().map((grams) {
-                  final selected = (_value - grams).abs() < 0.0001;
-                  return ChoiceChip(
-                    selected: selected,
-                    label: Text(_suggestionLabel(grams)),
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    onSelected: (_) => _setValue(grams),
-                    selectedColor: cs.primaryContainer,
-                    labelStyle: TextStyle(color: selected ? cs.onPrimaryContainer : null, fontSize: 12),
-                  );
-                }).toList(),
-              ),
-
-              const Spacer(),
-
-              SafeArea(
-                top: false,
-                child: FilledButton(
-                  onPressed: _isEmpty ? null : _submit,
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: Text(
-                    _hasUsualUnits
-                        ? "Ajouter ~$_currentUnits ${_unit.label}${_currentUnits > 1 ? 's' : ''} (${_fmt(_value)} g)"
-                        : "Ajouter ${_fmt(_value)} ${widget.unite}",
-                  ),
-                ),
-              ),
-            ],
-          ),
+                          const SizedBox(height: 16),
+                          Wrap(spacing: 8, runSpacing: 8, children: [
+                            OutlinedButton(
+                                onPressed: () => _setValue(
+                                    _value - (_hasUnits ? _step : 10)),
+                                child: Text(
+                                    _hasUnits ? '− 1 ${_unit.label}' : '− 10')),
+                            if (_hasUnits)
+                              OutlinedButton(
+                                  onPressed: () => _setValue(_step / 2),
+                                  child: const Text('½ portion'))
+                            else ...[
+                              OutlinedButton(
+                                  onPressed: () => _setValue(_value - 1),
+                                  child: const Text('− 1')),
+                              FilledButton.tonal(
+                                  onPressed: () => _setValue(_value + 1),
+                                  child: const Text('+ 1')),
+                            ],
+                            FilledButton.tonal(
+                                onPressed: () => _setValue(
+                                    _value + (_hasUnits ? _step : 10)),
+                                child: Text(
+                                    _hasUnits ? '+ 1 ${_unit.label}' : '+ 10')),
+                          ]),
+                        ])),
+                    const SizedBox(height: 24),
+                    Text('Quantités rapides', style: text.titleMedium),
+                    const SizedBox(height: 12),
+                    Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: suggestions
+                            .map((grams) => ChoiceChip(
+                                  selected:
+                                      _valid && (_value - grams).abs() < 0.0001,
+                                  label: Text(_hasUnits
+                                      ? '${_fmt(grams / _step)} ${_unit.label} · ${_fmt(grams)} g'
+                                      : '${_fmt(grams)} ${widget.unite}'),
+                                  onSelected: (_) => _setValue(grams),
+                                ))
+                            .toList()),
+                  ]),
+                ))),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: Center(
+              heightFactor: 1,
+              child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 600),
+                  child: SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: _valid ? _submit : null,
+                        icon: const Icon(Icons.add_rounded),
+                        label: Text(
+                            _valid
+                                ? 'Ajouter ${_fmt(_value)} ${widget.unite}'
+                                : 'Ajouter au repas',
+                            textAlign: TextAlign.center),
+                      )))),
         ),
-      ),
-    );
-  }
-}
-
-// Bouton compact (Outlined / Tonal)
-class _MiniBtn extends StatelessWidget {
-  final String label;
-  final VoidCallback onTap;
-  final bool filled;
-  const _MiniBtn({required this.label, required this.onTap, this.filled = false});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(10));
-    if (filled) {
-      return FilledButton.tonal(
-        onPressed: onTap,
-        style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8), shape: shape),
-        child: Text(label),
-      );
-    }
-    return OutlinedButton(
-      onPressed: onTap,
-      style: OutlinedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        shape: shape,
-        side: BorderSide(color: cs.outlineVariant),
-      ),
-      child: Text(label),
+      ])),
     );
   }
 }

@@ -96,6 +96,7 @@ class DaySnapshot {
       'fat_saturated_g': fatSaturatedG,
       'fat_monounsaturated_g': fatMonounsaturatedG,
       'fat_polyunsaturated_g': fatPolyunsaturatedG,
+      if (updatedAt != null) 'updated_at': updatedAt!.toIso8601String(),
     };
   }
 }

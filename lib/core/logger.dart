@@ -14,7 +14,7 @@ class SimpleLogPrinter extends LogPrinter {
       time: DateTime.now(),
       level: () {
         switch (event.level) {
-          case Level.verbose:
+          case Level.trace:
             return 0;
           case Level.debug:
             return 500;
@@ -24,7 +24,7 @@ class SimpleLogPrinter extends LogPrinter {
             return 1500;
           case Level.error:
             return 2000;
-          case Level.wtf:
+          case Level.fatal:
             return 2000;
           default:
             return 2000;

@@ -1,8 +1,7 @@
-
 import 'package:flutter/material.dart';
 
 class LegalNoticePage extends StatelessWidget {
-  const LegalNoticePage({Key? key}) : super(key: key);
+  const LegalNoticePage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -20,9 +19,9 @@ class LegalNoticePage extends StatelessWidget {
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 12),
-            Text('Éditeur : NutriApp\nEmail : contact@nutriapp.com\nHébergeur : Firebase / Google LLC & © Supabase Inc'),
+            Text(
+                'Éditeur : NutriApp\nEmail : contact@nutriapp.com\nHébergeur : Firebase / Google LLC & © Supabase Inc'),
             SizedBox(height: 24),
-
             Text(
               'Politique de confidentialité',
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
@@ -34,7 +33,6 @@ class LegalNoticePage extends StatelessWidget {
               'la suppression ou modification de vos données personnelles à tout moment en nous contactant.',
             ),
             SizedBox(height: 24),
-
             Text(
               'Utilisation des cookies',
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
