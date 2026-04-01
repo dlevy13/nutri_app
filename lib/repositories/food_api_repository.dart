@@ -2,26 +2,55 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
+import '../services/fonctions.dart';
 
 class FoodAPIRepository {
   Future<List<Map<String, dynamic>>> search(String query) async {
-    final url = Uri.parse(
-      'https://world.openfoodfacts.org/cgi/search.pl'
-      '?search_terms=$query'
-      '&search_simple=1'
-      '&action=process'
-      '&json=1'
-      '&page_size=20'
-      '&fields=product_name,nutriments,id,code,image_url' // réduit la charge
-    );
+    query = query.trim();
+    if (query.isEmpty) return [];
+    Future<List> _run(String q) async {
+      final url = Uri.https(
+        'jasofcbxjgnuydohlyzk.supabase.co',
+        '/functions/v1/off-proxy',
+        {
+          'search_terms': q,
+          'search_simple': '1',
+          'action': 'process',
+          'json': '1',
+          'page_size': '20',
+          // Améliore la pertinence FR (et évite des résultats très "worldwide")
+          'lc': 'fr',
+          'countries_tags': 'en:france',
+          // réduit la charge
+          'fields': 'product_name,nutriments,id,code,image_url',
+        },
+      );
 
-    final resp = await http.get(url);
-    if (resp.statusCode != 200) {
-      throw Exception("Erreur de l'API de recherche d'aliments");
+      final resp = await http.get(
+        url,
+        headers: {
+          'User-Agent': 'MyApp/1.0 (contact@nutriwatt.fr)',
+        },
+      );
+      if (resp.statusCode != 200) {
+        throw Exception("Erreur de l'API de recherche d'aliments");
+      }
+
+      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+      return (data['products'] as List?) ?? const [];
     }
 
-    final data = jsonDecode(resp.body) as Map<String, dynamic>;
-    final List products = (data['products'] as List?) ?? const [];
+    // 1) Essai brut (tel que tapé)
+    List products = await _run(query);
+
+    // 2) Fallback si la requête contient des accents / caractères spéciaux
+    //    Exemple: "gerblé" -> "gerble" (OFF match souvent mieux sans diacritiques)
+    if (products.isEmpty) {
+      final normalized = normalize(query);
+      if (normalized.isNotEmpty && normalized != query) {
+        products = await _run(normalized);
+      }
+    }
 
    // --- Helpers parse ---
 double _num(dynamic v) {
@@ -30,11 +59,9 @@ double _num(dynamic v) {
   if (v is String) return double.tryParse(v.replaceAll(',', '.')) ?? double.nan;
   return double.nan;
 }
-bool _gt(double x, [double th = 0.1]) => x.isFinite && !x.isNaN && x > th;
 
 // --- Filtrage sélectif (avec inférence insaturés si absents) ---
 final filtered = <Map<String, dynamic>>[];
-int rejMacros0 = 0, rejLipides = 0, rej100 = 0;
 
 for (final raw in products.whereType<Map>()) {
   final m = Map<String, dynamic>.from(raw);
@@ -54,23 +81,19 @@ for (final raw in products.whereType<Map>()) {
     _num(nutr['fiber_100g']), _num(nutr['sugars_100g']),
   ].where((x) => x.isFinite && !x.isNaN).toList();
   final all100 = vals.isNotEmpty && vals.every((v) => (v - 100.0).abs() < 1e-9);
-  if (all100) { rej100++; continue; }
+  if (all100) continue;
 
   // 1) rejeter si macros principales toutes à 0
   final fatZ  = fat.isFinite ? fat : 0.0;
   final protZ = prot.isFinite ? prot : 0.0;
   final carbZ = carb.isFinite ? carb : 0.0;
-  if (fatZ <= 0 && carbZ <= 0 && protZ <= 0) { rejMacros0++; continue; }
+  if (fatZ <= 0 && carbZ <= 0 && protZ <= 0) continue;
   
 
   // 2) exiger sat > 0 (ta contrainte)
   //if (!_gt(sat)) { rejLipides++; continue; }
 
   // 3) insaturés : (mono>0 || poly>0) OU, à défaut, (fat - sat) >= 1g/100g
-  final hasMonoPoly = _gt(mono) || _gt(poly);
-  final inferredUnsat = (fat.isFinite ? fat : 0) - (sat.isFinite ? sat : 0); // peut être négatif si données bruitées
-  final hasUnsatByInference = inferredUnsat >= 1.0; // seuil tolérant
-
   //if (!hasMonoPoly && !hasUnsatByInference) {
     //rejLipides++; continue;
   //}
