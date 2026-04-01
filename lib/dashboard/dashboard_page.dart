@@ -166,13 +166,26 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                   ThemedSectionCard(
                     title: "Journal Nutrition",
                     accent: cs.primary.withValues(alpha: 0.35),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.sync, size: 20),
-                      tooltip: "Actualiser le journal",
-                      onPressed: () {
-                        ref.read(dashboardProvider.notifier).forceStravaSync();
-                      },
-                    ),
+                    trailing: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.sync, size: 20),
+                            tooltip: "Actualiser le journal",
+                            onPressed: () {
+                              ref.read(dashboardProvider.notifier).forceStravaSync();
+                            },
+                          ),
+                          Text(
+                            "Strava",
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.orange, // branding Strava
+                            ),
+                          ),
+                        ],
+                      ),
                     child: const ChronoLoggerCard(),
                   ),
 
@@ -214,7 +227,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 // SELECTEUR DE SEMAINE
 // ============================================================================
 class _WeekSelectorCompact extends ConsumerWidget {
-  const _WeekSelectorCompact({super.key});
+  const _WeekSelectorCompact();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

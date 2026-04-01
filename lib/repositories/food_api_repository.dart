@@ -123,8 +123,40 @@ for (final raw in products.whereType<Map>()) {
   });
 }
 
+    // Fallback UX: OFF renvoie parfois des produits sans nutriments,
+    // et notre filtrage peut tout éliminer (ex: marques "Gerblé").
+    // Dans ce cas, on renvoie quand même une liste basique (nutriments à 0)
+    // pour éviter un écran "aucun résultat".
+    if (filtered.isNotEmpty) return filtered;
 
-    return filtered;
+    final fallback = <Map<String, dynamic>>[];
+    for (final raw in products.whereType<Map>()) {
+      final m = Map<String, dynamic>.from(raw);
+      final name = (m['product_name'] ?? '').toString().trim();
+      if (name.isEmpty) continue;
+      fallback.add({
+        'product_name': name,
+        'source': 'api',
+        'id': m['id'],
+        'code': m['code'],
+        'image_url': m['image_url'],
+        'nutriments': const {
+          'energy-kcal_100g': 0.0,
+          'proteins_100g': 0.0,
+          'carbohydrates_100g': 0.0,
+          'fat_100g': 0.0,
+          'fiber_100g': 0.0,
+          'sugars_100g': 0.0,
+          'saturated-fat_100g': 0.0,
+          'monounsaturated-fat_100g': 0.0,
+          'polyunsaturated-fat_100g': 0.0,
+          'trans-fat_100g': 0.0,
+        },
+      });
+      if (fallback.length >= 20) break;
+    }
+
+    return fallback;
   }
 }
 

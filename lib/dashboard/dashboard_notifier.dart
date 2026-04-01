@@ -13,7 +13,6 @@ import '../services/ai_manager.dart';
 import '../providers/common_providers.dart';
 import 'dashboard_state.dart';
 import '../repositories/daily_snapshot_remote_repository.dart';
-import '../services/nutrition_snapshot_service.dart';
 
 
 
@@ -24,8 +23,6 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
   final DailyCaloriesRepository _localRepo;
   late final UserRepository _userRepository =
       _ref.read(userRepositoryProvider);
-  late final NutritionSnapshotService _nutritionSnapshotService =
-    _ref.read(nutritionSnapshotServiceProvider);
   late final MealRepository _mealRepository =
       _ref.read(mealRepositoryProvider);
   late final StravaRepository _stravaRepository =
@@ -216,8 +213,39 @@ Future<void> pushSelectedDayToSupabase() async {
     // 🔥 SOURCE DE VÉRITÉ = Hive (DailyCalories)
     final daily = _localRepo.getForDate(dateKey);
 
-    final double stravaCalories = daily?.strava ?? 0.0;
-    final List<dynamic> stravaActivities = state.stravaActivitiesForDay;
+    double stravaCalories = daily?.strava ?? 0.0;
+    // 🔥 Source de vérité pour la liste d'activités = Hive (StravaDayActivities)
+    // Sinon, un simple rebuild / navigation peut "vider" l'affichage jusqu'à resync.
+    final activitiesRepo = _ref.read(stravaActivitiesRepositoryProvider);
+    final cachedActivities = activitiesRepo.getForDate(dateKey);
+    final List<dynamic> stravaActivities =
+        cachedActivities?.activities ?? const [];
+
+    // Si les activités sont bien en cache mais que DailyCalories.strava vaut 0,
+    // on recalcule les kcal depuis les activités et on les persiste.
+    if (stravaCalories <= 0 && stravaActivities.isNotEmpty) {
+      double parsed = 0.0;
+      for (final a in stravaActivities) {
+        if (a is Map) {
+          final raw = a['calories'];
+          if (raw is num) {
+            parsed += raw.toDouble();
+          } else if (raw is String) {
+            parsed += double.tryParse(raw.replaceAll(',', '.')) ?? 0.0;
+          }
+        }
+      }
+      stravaCalories = parsed;
+      if (stravaCalories > 0) {
+        await _localRepo.upsert(
+          date: dateKey,
+          objectif: daily?.objectif ?? 0.0,
+          strava: stravaCalories,
+          total: daily?.total ?? 0.0,
+          stravaFetchedAt: DateTime.now(),
+        );
+      }
+    }
     final bool isStravaConnected = await _getIsStravaConnected();
 
 
@@ -341,6 +369,17 @@ Future<void> forceStravaSync() async {
       stravaCaloriesForDay: strava.totalCalories,
       stravaActivitiesForDay: strava.activities,
     );
+
+    // Persister la partie "kcal" en local, pour que loadLocalData puisse
+    // réafficher Strava sans forcer un resync.
+    final dateKey = DateService.formatStandard(date);
+    await _localRepo.upsert(
+      date: dateKey,
+      objectif: (state.macroNeeds['Calories'] ?? 0).toDouble(),
+      strava: strava.totalCalories,
+      total: (state.consumedMacros['Calories'] ?? 0).toDouble(),
+    );
+    await pushSelectedDayToSupabase();
   } finally {
     _syncing = false;
   }
@@ -371,37 +410,6 @@ Future<void> forceStravaSync() async {
   // == ACTIONS UTILISATEUR
   // ===========================================================================
 
-  int _countDistinctMealsByType(
-    List<Meal> meals, {
-    bool includeSnack = true,
-    double minKcalPerType = 50.0,
-  }) {
-    final allowed = <String>{
-      'Petit-déjeuner',
-      'Déjeuner',
-      'Dîner',
-      if (includeSnack) 'Collation',
-    };
-
-    final Map<String, double> kcalPerType = {
-      for (final t in allowed) t: 0.0
-    };
-
-    for (final m in meals) {
-      if (allowed.contains(m.type)) {
-        kcalPerType[m.type] =
-            (kcalPerType[m.type]! + (m.calories));
-      }
-    }
-
-    final presentTypes = kcalPerType.entries
-        .where((e) => e.value >= minKcalPerType)
-        .map((e) => e.key)
-        .toSet();
-
-    return presentTypes.length;
-  }
-
   Future<void> selectDate(DateTime newDate) async {
     final normalized = DateTime(
       newDate.year,
@@ -417,9 +425,6 @@ Future<void> forceStravaSync() async {
     // 🔥 reset Strava pour éviter le recyclage
     state = state.copyWith(
       selectedDate: normalized,
-      stravaCaloriesForDay: 0.0,
-      stravaActivitiesForDay: const [],
-      isStravaConnected: false,
       status: ViewStatus.loading,
     );
 

@@ -45,20 +45,7 @@ final dailyEnergyProvider = FutureProvider<List<DailyEnergy>>((ref) async {
 
   if (list.isEmpty) return [];
 
-  final today = DateService.startOfLocalDay(now);
-
-  // ⚠️ EXACTE même logique que ta version Firestore : 
-  // on ignore TODAY si repas incomplets (<3).
-  final filtered = list.where((e) {
-    final day = DateService.parseStandard(e.date);
-    final isToday = DateService.startOfLocalDay(day) == today;
-
-    // mealsCount n’existe plus → on NE FILTRE PAS
-    // (si tu veux réactiver la logique je peux la réimplémenter autrement)
-    return true;
-  });
-
-  return filtered.map((dc) {
+  return list.map((dc) {
     final day = DateService.parseStandard(dc.date);
 
     return DailyEnergy(
