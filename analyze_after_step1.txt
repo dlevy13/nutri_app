@@ -1,0 +1,82 @@
+Analyzing nutriwatt_app...                                      
+
+   info • Unnecessary 'this.' qualifier • lib/core/base/base_service.dart:9:5 • unnecessary_this
+   info • Unnecessary 'this.' qualifier • lib/core/base/base_service.dart:10:16 • unnecessary_this
+   info • The private field _title could be 'final' • lib/core/base/base_view_model.dart:6:11 • prefer_final_fields
+   info • Unnecessary 'this.' qualifier • lib/core/base/base_view_model.dart:16:30 • unnecessary_this
+   info • Unnecessary 'this.' qualifier • lib/core/base/base_view_model.dart:19:20 • unnecessary_this
+   info • Unnecessary 'this.' qualifier • lib/core/base/base_view_model.dart:20:26 • unnecessary_this
+   info • Unnecessary 'this.' qualifier • lib/core/base/base_view_model.dart:21:33 • unnecessary_this
+   info • Unnecessary 'this.' qualifier • lib/core/base/base_view_model.dart:29:5 • unnecessary_this
+   info • The private field _log could be 'final' • lib/core/locator.dart:9:17 • prefer_final_fields
+   info • 'verbose' is deprecated and shouldn't be used. [verbose] is being deprecated in favor of [trace] • lib/core/logger.dart:17:22 • deprecated_member_use
+   info • 'wtf' is deprecated and shouldn't be used. [wtf] is being deprecated in favor of [fatal] • lib/core/logger.dart:27:22 • deprecated_member_use
+   info • The private field _independentServices could be 'final' • lib/core/providers.dart:13:34 • prefer_final_fields
+   info • The private field _dependentServices could be 'final' • lib/core/providers.dart:17:34 • prefer_final_fields
+   info • The private field _consumableServices could be 'final' • lib/core/providers.dart:19:34 • prefer_final_fields
+   info • The local variable '_getIsStravaConnected' starts with an underscore • lib/dashboard/dashboard_notifier.dart:196:16 • no_leading_underscores_for_local_identifiers
+   info • The local variable '_cap' starts with an underscore • lib/dashboard/dashboard_notifier.dart:824:12 • no_leading_underscores_for_local_identifiers
+   info • Use interpolation to compose strings and values • lib/dashboard/dashboard_notifier.dart:827:16 • prefer_interpolation_to_compose_strings
+   info • The local variable '_fmtTop' starts with an underscore • lib/dashboard/dashboard_notifier.dart:838:12 • no_leading_underscores_for_local_identifiers
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/dashboard/dashboard_page.dart:311:57 • deprecated_member_use
+   info • 'surfaceVariant' is deprecated and shouldn't be used. Use surfaceContainerHighest instead. This feature was deprecated after v3.18.0-0.1.pre • lib/dashboard/dashboard_page.dart:312:40 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/dashboard/dashboard_page.dart:362:33 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/dashboard/old_dashboard_page.dart:960:43 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/dashboard/old_dashboard_page.dart:971:51 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/dashboard/old_dashboard_page.dart:1389:57 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/dashboard/old_dashboard_page.dart:1422:68 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/dashboard/old_dashboard_page.dart:1426:68 • deprecated_member_use
+   info • The local variable '_open' starts with an underscore • lib/dashboard/old_dashboard_page.dart:1461:18 • no_leading_underscores_for_local_identifiers
+   info • The local variable '_open' starts with an underscore • lib/dashboard/old_dashboard_page.dart:1679:18 • no_leading_underscores_for_local_identifiers
+   info • Dangling library doc comment • lib/dashboard/widgets/chrono_logger_card.dart:1:1 • dangling_library_doc_comments
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/dashboard/widgets/chrono_logger_card.dart:212:30 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/dashboard/widgets/chrono_logger_card.dart:214:49 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/dashboard/widgets/energy_gauge_card.dart:76:50 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/dashboard/widgets/energy_gauge_card.dart:89:48 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/dashboard/widgets/food_analysis_section.dart:252:53 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/dashboard/widgets/food_analysis_section.dart:476:52 • deprecated_member_use
+   info • The local variable '_bandRelativeToGoal' starts with an underscore • lib/dashboard/widgets/macro_quality_radar.dart:285:15 • no_leading_underscores_for_local_identifiers
+   info • The local variable '_normToGoal' starts with an underscore • lib/dashboard/widgets/macro_quality_radar.dart:326:12 • no_leading_underscores_for_local_identifiers
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/dashboard/widgets/macro_quality_radar.dart:369:31 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/dashboard/widgets/macro_quality_radar.dart:376:32 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/dashboard/widgets/macro_quality_radar.dart:384:54 • deprecated_member_use
+   info • The local variable '_tooltipPanel' starts with an underscore • lib/dashboard/widgets/macro_quality_radar.dart:393:12 • no_leading_underscores_for_local_identifiers
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/dashboard/widgets/macro_quality_radar.dart:458:53 • deprecated_member_use
+   info • Use a function declaration rather than a variable assignment to bind a function to a name • lib/dashboard/widgets/macro_quality_radar.dart:558:29 • prefer_function_declarations_over_variables
+   info • The file name 'envLoader.dart' isn't a lower_case_with_underscores identifier • lib/envLoader.dart:1:1 • file_names
+   info • Use interpolation to compose strings and values • lib/meal_input/meal_input_notifier.dart:489:35 • prefer_interpolation_to_compose_strings
+   info • Use interpolation to compose strings and values • lib/meal_input/meal_input_notifier.dart:490:35 • prefer_interpolation_to_compose_strings
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/meal_input/meal_input_page.dart:454:35 • deprecated_member_use
+   info • Parameter 'key' could be a super parameter • lib/pages/legal_notice_page.dart:5:9 • use_super_parameters
+   info • 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre • lib/pages/profile_form_page.dart:238:23 • deprecated_member_use
+   info • 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre • lib/pages/profile_form_page.dart:256:23 • deprecated_member_use
+   info • 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre • lib/pages/register_page.dart:164:17 • deprecated_member_use
+   info • The local variable '_run' starts with an underscore • lib/repositories/food_api_repository.dart:11:18 • no_leading_underscores_for_local_identifiers
+   info • The local variable '_num' starts with an underscore • lib/repositories/food_api_repository.dart:56:8 • no_leading_underscores_for_local_identifiers
+   info • Use interpolation to compose strings and values • lib/services/fonctions.dart:136:40 • prefer_interpolation_to_compose_strings
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/services/login_service.dart:57:20 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/services/login_service.dart:64:28 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/services/login_service.dart:70:28 • use_build_context_synchronously
+   info • The variable name 'searchFoodOnFatSecret_OFFCompatible' isn't a lowerCamelCase identifier • lib/services/search_api_service.dart:11:36 • non_constant_identifier_names
+   info • The variable name '_parseFatSecret_OFFCompatible' isn't a lowerCamelCase identifier • lib/services/search_api_service.dart:47:28 • non_constant_identifier_names
+   info • The local variable '_d' starts with an underscore • lib/services/search_api_service.dart:60:10 • no_leading_underscores_for_local_identifiers
+   info • The part-of directive uses a library name • lib/views/home/home_desktop.dart:1:1 • use_string_in_part_of_directives
+   info • Constructors in '@immutable' classes should be declared as 'const' • lib/views/home/home_desktop.dart:6:3 • prefer_const_constructors_in_immutables
+   info • The 'child' argument should be last in widget constructor invocations • lib/views/home/home_desktop.dart:31:9 • sort_child_properties_last
+   info • The part-of directive uses a library name • lib/views/home/home_mobile.dart:1:1 • use_string_in_part_of_directives
+   info • Constructors in '@immutable' classes should be declared as 'const' • lib/views/home/home_mobile.dart:6:3 • prefer_const_constructors_in_immutables
+   info • The 'child' argument should be last in widget constructor invocations • lib/views/home/home_mobile.dart:31:9 • sort_child_properties_last
+   info • The part-of directive uses a library name • lib/views/home/home_tablet.dart:1:1 • use_string_in_part_of_directives
+   info • Constructors in '@immutable' classes should be declared as 'const' • lib/views/home/home_tablet.dart:6:3 • prefer_const_constructors_in_immutables
+   info • The 'child' argument should be last in widget constructor invocations • lib/views/home/home_tablet.dart:31:9 • sort_child_properties_last
+   info • Library names are not necessary • lib/views/home/home_view.dart:1:9 • unnecessary_library_name
+   info • Constructors for public widgets should have a named 'key' parameter • lib/views/home/home_view.dart:12:7 • use_key_in_widget_constructors
+   info • 'ScreenTypeLayout' is deprecated and shouldn't be used. Use ScreenTypeLayout.builder instead for performance improvements • lib/views/home/home_view.dart:21:16 • deprecated_member_use
+   info • Unnecessary 'this.' qualifier • lib/views/home/home_view_model.dart:6:38 • unnecessary_this
+   info • Unnecessary 'this.' qualifier • lib/views/home/home_view_model.dart:8:22 • unnecessary_this
+   info • Unnecessary 'this.' qualifier • lib/views/home/home_view_model.dart:10:5 • unnecessary_this
+   info • Unnecessary 'this.' qualifier • lib/views/home/home_view_model.dart:14:23 • unnecessary_this
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widget/copy_yesterday_meal_sheet.dart:205:56 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widget/totals_bar.dart:31:33 • deprecated_member_use
+
+78 issues found. (ran in 2.7s)
