@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
+import '../meal_input/meal_search_helpers.dart';
 
 final foodCacheRepositoryProvider = Provider<FoodCacheRepository>((ref) {
   return FoodCacheRepository(Supabase.instance.client);
@@ -10,21 +10,15 @@ class FoodCacheRepository {
   final SupabaseClient _supabase;
   FoodCacheRepository(this._supabase);
 
-  String _normalize(String q) {
-    return q.trim().toLowerCase().split(' ').first;
-  }
-
-  // 🔍 SEARCH (rapide + pertinent)
+  // Exact normalized keys prevent unrelated first-word buckets from mixing.
   Future<List<Map<String, dynamic>>> searchFoods(String query) async {
-    final q = query.trim().toLowerCase();
-    if (q.length < 3) return [];
-
-    final root = _normalize(q);
+    final key = normalizeFoodSearch(query);
+    if (key.length < 3) return [];
 
     final response = await _supabase
         .from('food_search_cache')
         .select('data')
-        .or('query.ilike.%$root%,product_name.ilike.%$q%')
+        .eq('query', key)
         .limit(20);
 
     final results = response
@@ -32,31 +26,20 @@ class FoodCacheRepository {
           (row) => Map<String, dynamic>.from(row['data']),
         )
         .toList();
-
-    // 🔥 tri intelligent (les meilleurs résultats en haut)
-    results.sort((a, b) {
-      final nameA = (a['product_name'] ?? '').toString().toLowerCase();
-      final nameB = (b['product_name'] ?? '').toString().toLowerCase();
-
-      final scoreA = nameA.startsWith(q) ? 2 : nameA.contains(q) ? 1 : 0;
-      final scoreB = nameB.startsWith(q) ? 2 : nameB.contains(q) ? 1 : 0;
-
-      return scoreB.compareTo(scoreA);
-    });
-
-    return results;
+    return rankFoodSearchResults(results, key);
   }
 
   // 💾 SAVE (safe + no duplicates)
   Future<void> saveMany(String query, List<Map<String, dynamic>> items) async {
     if (items.isEmpty) return;
 
-    final root = _normalize(query);
+    final key = normalizeFoodSearch(query);
+    if (key.length < 3) return;
 
-    final rows = items.map((item) {
+    final rows = rankFoodSearchResults(items, key).map((item) {
       final code = (item['code'] ?? item['id'] ?? '').toString();
       return {
-        'query': root,
+        'query': key,
         'product_name': (item['product_name'] ?? '').toString(),
         'code': code,
         'data': item,

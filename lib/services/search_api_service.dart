@@ -1,10 +1,17 @@
 import 'dart:convert';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // ---------------------------------------------------------------------------
 //   SEARCH FATSECRET (NECESSITE CLOUD FUNCTION)
 //      → On garde pour protéger ton secret API (FatSecret interdit côté client)
 // ---------------------------------------------------------------------------
+
+typedef FoodSearchRequest = Future<List<Map<String, dynamic>>> Function(String);
+
+final fatSecretFoodSearchProvider = Provider<FoodSearchRequest>(
+  (ref) => searchFoodOnFatSecretOffCompatible,
+);
 
 final supabase = Supabase.instance.client;
 

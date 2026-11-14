@@ -33,6 +33,23 @@ class MealInputNotifier extends StateNotifier<MealInputState> {
   final Ref _ref;
   late final MealRepository _mealRepository = _ref.read(mealRepositoryProvider);
   Timer? _debounce;
+  int _foodSearchVersion = 0;
+
+  int _invalidateFoodSearch() {
+    _debounce?.cancel();
+    _debounce = null;
+    return ++_foodSearchVersion;
+  }
+
+  bool _isCurrentFoodSearch(int version) =>
+      mounted && version == _foodSearchVersion;
+
+  @override
+  void dispose() {
+    _invalidateFoodSearch();
+    super.dispose();
+  }
+
   late final FoodAPIRepository _foodApiRepository =
       _ref.read(foodApiRepositoryProvider);
   late final SportProductRepository _sportProductRepository =
@@ -120,6 +137,7 @@ class MealInputNotifier extends StateNotifier<MealInputState> {
     final dateKey = DateService.formatStandard(state.selectedDate);
     final meals = await _mealRepository.getMealsForTypeAndDate(
         state.selectedMealType, dateKey);
+    if (!mounted) return;
     _warmPer100Cache(meals);
     state = state.copyWith(addedFoodsForDay: meals);
   }
@@ -127,6 +145,7 @@ class MealInputNotifier extends StateNotifier<MealInputState> {
   Future<void> _loadRecentSuggestions() async {
     final suggestions =
         await _mealRepository.getLastMealsByType(state.selectedMealType);
+    if (!mounted) return;
     state = state.copyWith(recentSuggestions: suggestions);
   }
 
@@ -141,12 +160,14 @@ class MealInputNotifier extends StateNotifier<MealInputState> {
   }
 
   void changeMealType(String newType) {
+    _invalidateFoodSearch();
     final isActivityType = (() {
       final normalized = newType.trim().toLowerCase();
       return normalized == 'activité' || normalized == 'activite';
     })();
     state = state.copyWith(
       selectedMealType: newType,
+      status: SearchStatus.initial,
       searchSuggestions: [],
       historySearchSuggestions: [],
       sportProductSuggestions: [],
@@ -263,51 +284,44 @@ class MealInputNotifier extends StateNotifier<MealInputState> {
   // Recherche principale
   // ------------------------------------------------
   void searchFood(String query, {bool forceOnline = false}) {
-    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    if (!mounted) return;
+    final version = _invalidateFoodSearch();
+    final qTrim = query.trim();
+    final queryTokens = foodSearchTokens(qTrim);
+    if (normalizeFoodSearch(qTrim).length < 3 || queryTokens.isEmpty) {
+      state = state.copyWith(
+          searchSuggestions: [],
+          historySearchSuggestions: [],
+          status: SearchStatus.initial);
+      return;
+    }
+    state = state.copyWith(
+        searchSuggestions: [],
+        historySearchSuggestions: [],
+        status: SearchStatus.loading);
     _debounce = Timer(const Duration(milliseconds: 300), () async {
-      final qTrim = query.trim();
-
-      final qRoots =
-          qTrim.split(' ').map(_root).where((t) => t.isNotEmpty).toList();
-
-      if (qTrim.length < 3) {
-        if (mounted) {
-          state = state.copyWith(
-            searchSuggestions: [],
-            historySearchSuggestions: [],
-            status: SearchStatus.initial,
-          );
-        }
-        return;
-      }
-
-      if (mounted) state = state.copyWith(status: SearchStatus.loading);
-
+      if (!_isCurrentFoodSearch(version)) return;
       try {
         // --- 1. Historique en mémoire ---
         List<Meal> uniqueHistoryResults = [];
-        if (qRoots.isNotEmpty) {
+        if (queryTokens.isNotEmpty) {
           final historyMatches = state.allRecentMeals.where((meal) {
-            final mealTokens = meal.name
-                .split(' ')
-                .map(_root)
-                .where((t) => t.isNotEmpty)
-                .toList();
-            if (mealTokens.isEmpty) return false;
-            return qRoots.every((qToken) =>
-                mealTokens.any((mToken) => mToken.startsWith(qToken)));
+            return localFoodNameMatches(qTrim, meal.name);
           }).toList();
 
           final seenNames = <String>{};
           for (final meal in historyMatches) {
-            final key = normalize(meal.name);
+            final key = normalizeFoodSearch(meal.name);
             if (seenNames.add(key)) {
               uniqueHistoryResults.add(meal);
             }
           }
 
-          // FIX #6 : trier par date décroissante et limiter à 10
+          // Relevance first; recency breaks ties within the same match tier.
           uniqueHistoryResults.sort((a, b) {
+            final relevance = foodNameMatchScore(qTrim, b.name)
+                .compareTo(foodNameMatchScore(qTrim, a.name));
+            if (relevance != 0) return relevance;
             final ta = DateTime.tryParse(a.timestamp ?? '') ?? DateTime(2000);
             final tb = DateTime.tryParse(b.timestamp ?? '') ?? DateTime(2000);
             return tb.compareTo(ta);
@@ -320,7 +334,7 @@ class MealInputNotifier extends StateNotifier<MealInputState> {
         // Le JSON local doit répondre même si le cache distant est lent
         // ou indisponible.
         final localResults = await _searchLocal(qTrim);
-        if (!mounted) return;
+        if (!_isCurrentFoodSearch(version)) return;
 
         state = state.copyWith(
           historySearchSuggestions: uniqueHistoryResults,
@@ -336,10 +350,15 @@ class MealInputNotifier extends StateNotifier<MealInputState> {
           cachedResults = const [];
         }
 
-        final combinedLocalCache =
-            _dedupApiLike([...localResults, ...cachedResults]);
+        if (!_isCurrentFoodSearch(version)) return;
+        final combinedLocalCache = rankFoodSearchResults(
+            _dedupApiLike([...localResults, ...cachedResults]), qTrim);
+        state = state.copyWith(
+            searchSuggestions: combinedLocalCache,
+            status: SearchStatus.success);
 
-        final bool needApi = forceOnline || combinedLocalCache.length < 5;
+        final bool needApi =
+            forceOnline || !hasEnoughFoodNameMatches(combinedLocalCache, qTrim);
 
         List<Map<String, dynamic>> apiResults = [];
         if (needApi) {
@@ -349,10 +368,12 @@ class MealInputNotifier extends StateNotifier<MealInputState> {
             apiResults = const [];
           }
 
-          final validApiResults = apiResults.where((item) {
+          if (!_isCurrentFoodSearch(version)) return;
+          final validApiResults =
+              rankFoodSearchResults(apiResults.where((item) {
             final nutr = item['nutriments'] as Map<String, dynamic>?;
             return nutr != null && (nutr['energy-kcal_100g'] != null);
-          }).toList();
+          }), qTrim);
 
           if (validApiResults.isNotEmpty) {
             try {
@@ -365,35 +386,15 @@ class MealInputNotifier extends StateNotifier<MealInputState> {
           }
         }
 
+        if (!_isCurrentFoodSearch(version)) return;
         final dedupLocalApi = _dedupApiLike([
           ...combinedLocalCache,
           ...apiResults,
         ]);
 
-        // FIX #4 : filtre groupe corrigé — garde les bons matches par nom
-        final isGroupQuery = _isGroupQueryForData(qTrim, dedupLocalApi);
-        final afterFilter = isGroupQuery
-            ? dedupLocalApi.where((it) {
-                final s = _scoreEntry(it, qTrim);
-                return s >= 80 ||
-                    _matchGroupStrict(it, qTrim) ||
-                    _nameStartsWith(it, qTrim);
-              }).toList()
-            : dedupLocalApi;
+        final afterFilter = rankFoodSearchResults(dedupLocalApi, qTrim);
 
-        afterFilter.sort(
-            (a, b) => _scoreEntry(b, qTrim).compareTo(_scoreEntry(a, qTrim)));
-
-        // Quand on a déjà des matchs très pertinents, on enlève le "bruit"
-        // (souvent des entrées CIQUAL/local à score 0 qui remontent parfois).
-        if (afterFilter.isNotEmpty) {
-          final top = _scoreEntry(afterFilter.first, qTrim);
-          if (top >= 80) {
-            afterFilter.removeWhere((it) => _scoreEntry(it, qTrim) == 0);
-          }
-        }
-
-        if (mounted) {
+        if (_isCurrentFoodSearch(version)) {
           state = state.copyWith(
             historySearchSuggestions: uniqueHistoryResults,
             searchSuggestions: afterFilter,
@@ -401,7 +402,9 @@ class MealInputNotifier extends StateNotifier<MealInputState> {
           );
         }
       } catch (e) {
-        if (mounted) state = state.copyWith(status: SearchStatus.failure);
+        if (_isCurrentFoodSearch(version)) {
+          state = state.copyWith(status: SearchStatus.failure);
+        }
       }
     });
   }
@@ -453,77 +456,6 @@ class MealInputNotifier extends StateNotifier<MealInputState> {
     }
   }
 
-  // FIX #3 : scoring multi-tokens — compare chaque mot de la requête
-  // séparément plutôt que la chaîne complète
-  int _scoreEntry(Map<String, dynamic> item, String qRaw) {
-    final qTokens = qRaw
-        .trim()
-        .split(' ')
-        .map(normalize)
-        .where((t) => t.isNotEmpty)
-        .toList();
-    if (qTokens.isEmpty) return 0;
-
-    final name = normalize((item['product_name'] as String?) ?? '');
-    final grp = (item['group'] as String?) ?? '';
-
-    int score = 0;
-    if (item['source'] == 'custom') score += 20;
-    if (item['source'] == 'api') score += 2;
-
-    final nameTokens =
-        name.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
-    final firstName = nameTokens.isNotEmpty ? nameTokens.first : '';
-
-    // Tous les tokens de la requête matchent dans le nom
-    final allTokensMatch =
-        qTokens.every((qt) => nameTokens.any((mt) => mt.startsWith(qt)));
-
-    if (allTokensMatch && firstName.startsWith(qTokens.first)) {
-      return 100 + score;
-    }
-    if (allTokensMatch) return 80 + score;
-
-    // Groupe (on utilise la racine du 1er mot de la requête seulement)
-    final qr = _root(qRaw.trim().split(' ').first);
-    final firstGrp = _root(_groupFirstToken(grp));
-    if (firstGrp == qr) return 95;
-    if (firstGrp.startsWith(qr)) return 90;
-
-    // Autres mots du groupe
-    final grpToks = _groupTokens(grp).map(_root).toList();
-    if (grpToks.skip(1).any((t) => t == qr || t.startsWith(qr))) return 55;
-
-    // Contient dans le nom (faible)
-    if (qTokens.any((qt) => name.contains(qt))) return 20 + score;
-
-    // Contient dans le groupe (faible)
-    if (qTokens.any((qt) => normalize(grp).contains(qt))) return 15;
-
-    return 0;
-  }
-
-  bool _matchGroupStrict(Map<String, dynamic> item, String qRaw) {
-    final qr = _root(qRaw.trim().split(' ').first);
-    final grp = (item['group'] as String?) ?? '';
-    if (grp.isEmpty) return false;
-
-    final first = _root(_groupFirstToken(grp));
-    if (first.isEmpty) return false;
-    if (first == qr || first.startsWith(qr)) return true;
-
-    final toks = _groupTokens(grp).map(_root);
-    return toks.any((t) => t == qr || t.startsWith(qr));
-  }
-
-  bool _nameStartsWith(Map<String, dynamic> item, String qRaw) {
-    final q = normalize(qRaw.trim().split(' ').first);
-    final name = normalize((item['product_name'] as String?) ?? '');
-    final parts = name.split(' ');
-    final first = parts.isNotEmpty ? parts.first : '';
-    return first.startsWith(q);
-  }
-
   // FIX #1 & #2 : _searchLocal utilise le cache RAM, n'appelle plus le cache Firestore
   Future<List<Map<String, dynamic>>> _searchLocal(String q) async {
     // Préchauffage si pas encore fait (cas rare)
@@ -561,7 +493,7 @@ class MealInputNotifier extends StateNotifier<MealInputState> {
             })
         .toList();
 
-    return [...customResults, ...localResults];
+    return rankFoodSearchResults([...customResults, ...localResults], q);
   }
 
   String _norm(String s) => normalize(s);
@@ -597,6 +529,8 @@ class MealInputNotifier extends StateNotifier<MealInputState> {
   }
 
   void clearSearch() {
+    _invalidateFoodSearch();
+    if (!mounted) return;
     state = state.copyWith(
       searchSuggestions: [],
       historySearchSuggestions: [],
@@ -610,30 +544,6 @@ class MealInputNotifier extends StateNotifier<MealInputState> {
       status: SearchStatus.initial,
       sportProductError: null,
     );
-  }
-
-  // --- Helpers groupe ---------------------------------------------------
-
-  String _root(String s) {
-    return searchRoot(s);
-  }
-
-  List<String> _groupTokens(String? g) => searchGroupTokens(g);
-
-  String _groupFirstToken(String? g) {
-    return searchGroupFirstToken(g);
-  }
-
-  bool _isGroupQueryForData(String qRaw, List<Map<String, dynamic>> items) {
-    final qr = _root(qRaw.trim().split(' ').first);
-    if (qr.length < 3 || qr.contains(' ')) return false;
-
-    for (final it in items) {
-      final grp = (it['group'] as String?) ?? '';
-      final first = _root(_groupFirstToken(grp));
-      if (first == qr || first.startsWith(qr)) return true;
-    }
-    return false;
   }
 
   // ------------------------------------------------
@@ -890,18 +800,28 @@ class MealInputNotifier extends StateNotifier<MealInputState> {
 
   // API FATSECRET //
   Future<void> searchFoodFatSecret(String query) async {
+    if (!mounted) return;
+    final version = _invalidateFoodSearch();
     final q = query.trim();
-    if (q.length < 3) return;
+    if (normalizeFoodSearch(q).length < 3) {
+      state = state.copyWith(
+          searchSuggestions: [],
+          historySearchSuggestions: [],
+          status: SearchStatus.initial);
+      return;
+    }
 
     try {
       state = state.copyWith(status: SearchStatus.loading);
-      final fsItems = await searchFoodOnFatSecretOffCompatible(q);
+      final fsItems = await _ref.read(fatSecretFoodSearchProvider)(q);
+      if (!_isCurrentFoodSearch(version)) return;
       state = state.copyWith(
-        searchSuggestions: fsItems,
-        status: SearchStatus.success,
-      );
+          searchSuggestions: rankFoodSearchResults(fsItems, q),
+          status: SearchStatus.success);
     } catch (e) {
-      state = state.copyWith(status: SearchStatus.success);
+      if (_isCurrentFoodSearch(version)) {
+        state = state.copyWith(status: SearchStatus.success);
+      }
     }
   }
 }
