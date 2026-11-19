@@ -87,6 +87,8 @@ List<Map<String, dynamic>> parseFatSecretOffCompatible(String body) {
 
     out.add({
       "product_name": name,
+      "brands": (item["brands"] ?? item["brand_name"] ?? item["brand"] ?? "")
+          .toString(),
       "source": "fatsecret",
       "nutriments": {
         "energy-kcal_100g": kcal.isNaN ? 0 : kcal,

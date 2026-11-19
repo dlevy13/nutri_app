@@ -5,6 +5,10 @@ import 'package:http/http.dart' as http;
 import '../services/fonctions.dart';
 
 class FoodAPIRepository {
+  final http.Client? _client;
+
+  FoodAPIRepository({http.Client? client}) : _client = client;
+
   Future<List<Map<String, dynamic>>> search(String query) async {
     query = query.trim();
     if (query.isEmpty) return [];
@@ -22,11 +26,11 @@ class FoodAPIRepository {
           'lc': 'fr',
           'countries_tags': 'en:france',
           // réduit la charge
-          'fields': 'product_name,nutriments,id,code,image_url',
+          'fields': 'product_name,brands,nutriments,id,code,image_url',
         },
       );
 
-      final resp = await http.get(
+      final resp = await (_client?.get ?? http.get)(
         url,
         headers: {
           'User-Agent': 'MyApp/1.0 (contact@nutriwatt.fr)',
@@ -110,6 +114,7 @@ class FoodAPIRepository {
       // → garder au format OFF attendu par l’UI
       filtered.add({
         'product_name': name,
+        'brands': (m['brands'] ?? '').toString(),
         'source': 'api',
         'id': m['id'],
         'code': m['code'],
@@ -152,6 +157,7 @@ class FoodAPIRepository {
       if (name.isEmpty) continue;
       fallback.add({
         'product_name': name,
+        'brands': (m['brands'] ?? '').toString(),
         'source': 'api',
         'id': m['id'],
         'code': m['code'],

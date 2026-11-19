@@ -70,6 +70,16 @@ int foodSearchEntryScore(Map<String, dynamic> item, String query) {
             : 0;
     return nameScore + bonus;
   }
+  // La marque est souvent absente du nom commercial (ex. « Figue et son »).
+  // Tous les mots doivent correspondre, éventuellement répartis entre les deux.
+  final brand = ['brands', 'brand', 'marque', 'brand_name']
+      .map((key) => (item[key] ?? '').toString())
+      .where((value) => value.trim().isNotEmpty)
+      .join(' ');
+  final name = (item['product_name'] as String?) ?? '';
+  if (brand.isNotEmpty && localFoodNameMatches(query, '$name $brand')) {
+    return 200;
+  }
   return localFoodGroupMatches(query, item['group']) ? 150 : 0;
 }
 

@@ -168,6 +168,37 @@ void main() {
           localFoodNameMatches('pot au feu', 'Petit pot aux légumes'), isFalse);
     });
 
+    test('brand and product words can match without unrelated results', () {
+      final figue = <String, dynamic>{
+        'product_name': 'Figue et son',
+        'brands': 'Gerblé',
+        'source': 'api',
+      };
+      final other = <String, dynamic>{
+        'product_name': 'Biscuits au chocolat',
+        'brands': 'Autre marque',
+      };
+      for (final query in [
+        'Gerblé',
+        'gerble',
+        'GERBLÉ',
+        'gerble figue',
+        'figue et son'
+      ]) {
+        expect(rankFoodSearchResults([figue, other], query), [figue],
+            reason: query);
+      }
+      expect(rankFoodSearchResults([figue, other], 'gerble chocolat'), isEmpty);
+      expect(rankFoodSearchResults([figue], 'erble'), isEmpty);
+      for (final field in ['brand', 'marque', 'brand_name']) {
+        expect(
+            rankFoodSearchResults([
+              {'product_name': 'Figue et son', field: 'Gerblé'},
+            ], 'gerble'),
+            hasLength(1));
+      }
+    });
+
     test('blank queries and equal scores remain predictable', () {
       expect(localFoodNameMatches(' --- ', 'Riz'), isFalse);
       expect(localFoodGroupMatches(' ', 'plats préparés'), isFalse);
