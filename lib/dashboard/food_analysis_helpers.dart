@@ -24,7 +24,7 @@ List<Meal> mealsForSelectedDay(
   }
 
   for (final meal in dailyMeals) {
-    if (meal.date != dateStr) continue;
+    if (!meal.isConsumption || meal.date != dateStr) continue;
     final key = keyOf(meal);
     if (seen.add(key)) unique.add(meal);
   }

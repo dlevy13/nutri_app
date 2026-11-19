@@ -212,7 +212,7 @@ class ImbalancedFoodsList extends ConsumerWidget {
             const SizedBox(width: 12),
             const Expanded(
               child: Text(
-                "Bravo ! Aucun aliment ne déséquilibre vos ratios aujourd'hui.",
+                "Bravo ! Aucun aliment ne déséquilibre vos ratios pour cette journée.",
                 style: TextStyle(fontWeight: FontWeight.w500),
               ),
             ),
@@ -428,7 +428,7 @@ class BeneficialFoodsList extends ConsumerWidget {
             const SizedBox(width: 12),
             const Expanded(
               child: Text(
-                "Aucun aliment ne se distingue particulièrement aujourd'hui.",
+                "Aucun aliment ne se distingue particulièrement pour cette journée.",
                 style: TextStyle(fontWeight: FontWeight.w500),
               ),
             ),

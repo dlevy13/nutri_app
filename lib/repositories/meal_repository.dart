@@ -24,7 +24,7 @@ class MealRepository {
     }
 
     for (final meal in _mealBox.values) {
-      if (weeklyMeals.containsKey(meal.date)) {
+      if (meal.isConsumption && weeklyMeals.containsKey(meal.date)) {
         weeklyMeals[meal.date]!.add(meal);
       }
     }
@@ -189,7 +189,7 @@ Future<List<Meal>> getMealsInRange(DateTime start, DateTime end) async {
 
     final meals = _mealBox.values.where((m) {
       final d = m.date; // déjà "yyyy-MM-dd"
-      return d.compareTo(s) >= 0 && d.compareTo(e) <= 0;
+      return m.isConsumption && d.compareTo(s) >= 0 && d.compareTo(e) <= 0;
     }).toList();
 
     meals.sort((a, b) {

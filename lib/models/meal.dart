@@ -1,6 +1,7 @@
 import 'package:hive/hive.dart';
 
 part 'meal.g.dart';
+
 //refonte
 /// Parse sûr → double (gère num, string "12,3", null)
 double _parseDouble(dynamic v) {
@@ -102,9 +103,13 @@ class Meal extends HiveObject {
   double? fatPolyunsaturatedPer100;
 
   @HiveField(23)
-  String? timestamp; 
+  String? timestamp;
   // Format ISO "2025-02-03T12:45:00"
   // Laisse null pour compat anciens repas
+
+  /// Les fiches du catalogue partagent la boîte Hive des repas, mais ne sont
+  /// pas des consommations. La date de consommation reste [date].
+  bool get isConsumption => type.trim().toLowerCase() != 'custom';
 
   Meal({
     required this.name,

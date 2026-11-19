@@ -81,17 +81,14 @@ class NutritionSnapshotService {
         objectiveKcal: objectif,
         activityKcal: strava,
         consumedKcal: calories,
-
         proteinG: protein,
         carbsG: carbs,
         fatG: fat,
         fiberG: fiber,
         sugarsG: sugars,
-
         fatSaturatedG: fatSat,
         fatMonounsaturatedG: fatMono,
         fatPolyunsaturatedG: fatPoly,
-
         updatedAt: DateTime.now(),
       );
 
@@ -111,14 +108,8 @@ class NutritionSnapshotService {
   // ----------------------------------------------------------------------
 
   Future<List<Meal>> _mealsForDate(String dateKey) async {
-    // Utilise le repo Hive comme source de vérité
-    return _mealRepo
-        .getMealsForTypeAndDate('', dateKey)
-        .then((_) async {
-      // getMealsForTypeAndDate filtre par type, ici on veut TOUS les types.
-      // Donc on récupère directement depuis Hive via getMealsInRange sur 1 jour.
-      final d = DateTime.parse(dateKey);
-      return _mealRepo.getMealsInRange(d, d);
-    });
+    // La date du repas affecte aussi bien les calories que les nutriments.
+    final day = DateTime.parse(dateKey);
+    return _mealRepo.getMealsInRange(day, day);
   }
 }
